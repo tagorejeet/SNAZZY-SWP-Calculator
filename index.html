@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Snazzy WealthPlan | SIP → Retirement → SWP Financial Planning Calculator</title>
+  <meta name="description" content="Official Snazzy WealthPlan financial calculator. Plan your SIP accumulation corpus, transition into retirement, and project inflation-adjusted SWP withdrawals." />
+  <link rel="icon" type="image/png" href="./assets/snazzy_logo.png" />
+  <link rel="stylesheet" href="./src/styles/main.css" />
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <nav class="snazzy-navbar">
+    <div class="navbar-inner">
+      <a href="#" class="brand-wrapper">
+        <img src="./assets/snazzy_logo.png" alt="Snazzy Wealth Logo" class="brand-logo-img" />
+        <div class="brand-text-block">
+          <span class="brand-company">Snazzy Wealth</span>
+          <span class="brand-product-badge">WealthPlan</span>
+        </div>
+      </a>
+
+      <ul class="nav-links">
+        <li><a href="https://snazzywealth.in/" target="_blank" rel="noopener noreferrer" class="nav-link">Home</a></li>
+        <li><a href="#inputsSection" class="nav-link active">WealthPlan</a></li>
+        <li><a href="#tablesSection" class="nav-link">Calculations</a></li>
+        <li><a href="#chartsSection" class="nav-link">Projections</a></li>
+        <li><a href="https://snazzywealth.in/#contact" target="_blank" rel="noopener noreferrer" class="nav-link">Contact</a></li>
+      </ul>
+
+      <div class="navbar-actions">
+        <!-- Presentation Mode Switch -->
+        <div class="view-mode-toggle" title="Switch between Advisor Mode and simplified Client View">
+          <button id="advisorModeBtn" class="view-mode-btn active">Advisor View</button>
+          <button id="clientModeBtn" class="view-mode-btn">Client View</button>
+        </div>
+
+        <button id="downloadExcelBtn" class="btn-snazzy-primary" title="Export client-ready Excel spreadsheet (.xlsx)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>Download Detailed Excel</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="snazzy-app-container">
+
+    <!-- Hero / Tagline Section -->
+    <header class="snazzy-hero-section">
+      <div class="hero-eyebrow">SNAZZY WEALTHPLAN</div>
+      
+      <div class="hero-tagline-heading-wrap">
+        <img src="./assets/snazzy_logo.png" alt="Snazzy Wealth Logo" class="hero-tagline-logo" />
+        <h1 class="hero-main-title">“Plan Today. Build Tomorrow. Retire With Confidence.”</h1>
+      </div>
+
+      <p class="hero-subtitle">
+        Visualize how your SIP and lump-sum investments can grow into a retirement corpus and how inflation-adjusted withdrawals may impact your wealth over time.
+      </p>
+
+      <div class="hero-cta-group">
+        <a href="#inputsSection" class="btn-snazzy-gold">
+          <span>Create My Plan</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </a>
+        <a href="#tablesSection" class="btn-snazzy-outline">View Calculation Table</a>
+      </div>
+    </header>
+
+    <!-- Client Name Banner (Active in Client View) -->
+    <div id="clientNameCard" class="client-name-card">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 20px;">👤</span>
+        <div>
+          <div class="client-name-label">Personalized Retirement Roadmap Prepared For:</div>
+          <input type="text" id="clientNameInput" class="client-name-input" placeholder="Enter Client Name" value="Mr. & Mrs. Sharma" />
+        </div>
+      </div>
+      <div style="font-size: 12px; color: var(--snazzy-text-dim);">
+        Report Date: <strong id="reportDateBadge">Oct 2026</strong>
+      </div>
+    </div>
+
+    <!-- 1. Financial Plan Inputs Section -->
+    <section id="inputsSection" class="snazzy-section">
+      <div class="section-header-block">
+        <h2 class="section-main-heading">
+          <span class="heading-accent"></span>
+          <span>Build Your Financial Plan</span>
+        </h2>
+        <p class="section-description" id="inputsSectionDesc">Goal-based retirement planning: determine the exact SIP required to sustain your lifestyle through retirement.</p>
+      </div>
+
+      <!-- Planning Mode Selector (Goal-Based vs SIP-Based) -->
+      <div class="planning-mode-selector-wrap">
+        <div class="planning-mode-segmented" role="tablist">
+          <button type="button" class="mode-tab-btn active" id="modeGoalBtn" data-mode="goal" role="tab" aria-selected="true">
+            <span class="mode-tab-icon">🎯</span>
+            <span class="mode-tab-text">
+              <strong>Goal-Based Planning</strong>
+              <small>Calculate Required SIP from Lifestyle &amp; Expenses</small>
+            </span>
+          </button>
+          <button type="button" class="mode-tab-btn" id="modeSipBtn" data-mode="sip" role="tab" aria-selected="false">
+            <span class="mode-tab-icon">📈</span>
+            <span class="mode-tab-text">
+              <strong>SIP-Based Planning</strong>
+              <small>Calculate What My Planned Monthly SIP Can Achieve</small>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <div class="inputs-tri-grid" id="inputsGridContainer">
+        <!-- Card 1: Retirement Goal & Lifestyle -->
+        <div class="snazzy-card goal-card" id="retirementGoalCard">
+          <div class="card-title-row">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--snazzy-purple)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <circle cx="12" cy="12" r="6"></circle>
+                <circle cx="12" cy="12" r="2"></circle>
+              </svg>
+              <span>Retirement Goal &amp; Lifestyle</span>
+            </h3>
+            <span class="card-stage-pill pill-purple">Stage 0: Lifestyle Goal</span>
+          </div>
+
+          <div class="form-fields-grid">
+            <!-- Current Age -->
+            <div class="form-group-item">
+              <label for="currentAge" class="form-label">
+                <span>Current Age</span>
+                <span class="sub-hint">Timeline Anchor</span>
+              </label>
+              <div class="input-control-wrap">
+                <input type="number" id="currentAge" class="snazzy-input has-suffix" value="40" min="18" max="85" step="1" />
+                <span class="input-symbol-suffix">Yrs Old</span>
+              </div>
+              <div class="input-help-line" id="currentAgeHelp">Current client age</div>
+            </div>
+
+            <!-- Planned Retirement Age -->
+            <div class="form-group-item">
+              <label for="retirementAge" class="form-label">
+                <span>Retirement Age</span>
+                <span class="sub-hint">When to Retire</span>
+              </label>
+              <div class="input-control-wrap">
+                <input type="number" id="retirementAge" class="snazzy-input has-suffix" value="60" min="19" max="95" step="1" />
+                <span class="input-symbol-suffix">Yrs Old</span>
+              </div>
+              <div class="input-help-line highlight" id="retirementAgeBadge">20 yrs accumulation horizon</div>
+            </div>
+
+            <!-- Current Monthly Household Expense -->
+            <div class="form-group-item full-col">
+              <label for="currentMonthlyExpense" class="form-label">
+                <span>Current Monthly Household Expense</span>
+                <span class="sub-hint">Today's Lifestyle Cost</span>
+              </label>
+              <div class="input-control-wrap">
+                <span class="input-symbol-prefix">₹</span>
+                <input type="number" id="currentMonthlyExpense" class="snazzy-input has-prefix" value="50000" min="0" step="5000" placeholder="50,000" />
+              </div>
+              <div class="input-help-line highlight" id="currentMonthlyExpenseWords">₹50,000 / month (₹6,00,000 / yr today)</div>
+            </div>
+
+            <!-- Pre-Retirement Inflation Rate -->
+            <div class="form-group-item">
+              <label for="preRetirementInflation" class="form-label">
+                <span>Pre-Retirement Inflation</span>
+                <span class="sub-hint">Till Retirement</span>
+              </label>
+              <div class="input-control-wrap">
+                <input type="number" id="preRetirementInflation" class="snazzy-input has-suffix" value="8" min="0" max="25" step="0.25" placeholder="8" />
+                <span class="input-symbol-suffix">% p.a.</span>
+              </div>
+              <div class="input-help-line" id="preRetirementInflationHelp">Lifestyle expense growth till retirement</div>
+            </div>
+
+            <!-- Retirement Sustainability Period (Years) -->
+            <div class="form-group-item">
+              <label for="retirementSustainabilityYears" class="form-label">
+                <span>Retirement Sustainability</span>
+                <span class="sub-hint">SWP Duration</span>
+              </label>
+              <div class="input-control-wrap">
+                <input type="number" id="retirementSustainabilityYears" class="snazzy-input has-suffix" value="20" min="5" max="60" step="1" placeholder="20" />
+                <span class="input-symbol-suffix">Years</span>
+              </div>
+              <div class="input-help-line highlight" id="sustainabilityHelp">Sustains household from Age 60 to 80</div>
+            </div>
+
+            <!-- Preset Chips for Retirement Sustainability Period -->
+            <div class="form-group-item full-col" style="margin-top: -6px;">
+              <div class="goal-preset-chips" id="sustainabilityPresetChips">
+                <span style="font-size: 11px; color: var(--snazzy-text-dim); align-self: center; margin-right: 4px;">Quick Pick:</span>
+                <button type="button" class="preset-chip" data-years="15">15 Yrs</button>
+                <button type="button" class="preset-chip active" data-years="20">20 Yrs</button>
+                <button type="button" class="preset-chip" data-years="25">25 Yrs</button>
+                <button type="button" class="preset-chip" data-years="30">30 Yrs</button>
+                <button type="button" class="preset-chip" data-years="35">35 Yrs</button>
+                <button type="button" class="preset-chip" data-years="40">40 Yrs</button>
+              </div>
+            </div>
+
+            <!-- Derived Lifestyle Cost at Retirement Highlight Box -->
+            <div class="form-group-item full-col">
+              <div class="ret-lifestyle-box" id="retLifestyleBox">
+                <div class="ret-lifestyle-header">
+                  <span class="ret-lifestyle-badge">ESTIMATED LIFESTYLE AT RETIREMENT</span>
+                  <span class="ret-lifestyle-horizon" id="dispHouseholdHorizon">At Age 60 (in 20 yrs)</span>
+                </div>
+                <div class="ret-lifestyle-values-grid">
+                  <div class="ret-lifestyle-val-col">
+                    <span class="ret-lifestyle-val-label">Estimated Monthly Expense</span>
+                    <span class="ret-lifestyle-val-num" id="dispMonthlyExpenseAtRetirement">₹2,33,048</span>
+                    <span class="ret-lifestyle-val-sub">/ month required</span>
+                  </div>
+                  <div class="ret-lifestyle-val-col">
+                    <span class="ret-lifestyle-val-label">Estimated Annual Expense</span>
+                    <span class="ret-lifestyle-val-num" id="dispAnnualExpenseAtRetirement">₹27,96,576</span>
+                    <span class="ret-lifestyle-val-sub">/ year in Year 1 of SWP</span>
+                  </div>
+                </div>
+                <div class="ret-lifestyle-compounding-note" id="dispHouseholdCompoundingNote">
+                  Compounded from ₹50,000/mo over 20 years @ 8% pre-retirement inflation
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: Investment Inputs -->
+        <div class="snazzy-card" id="investmentInputsCard">
+          <div class="card-title-row">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--snazzy-emerald)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23"></line>
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+              </svg>
+              <span id="investmentCardTitle">Investment Inputs (Accumulation)</span>
+            </h3>
+            <span class="card-stage-pill pill-green" id="investmentCardStagePill">Stage 1: Growth</span>
+          </div>
+
+          <div class="form-fields-grid">
+            <!-- Current Age & Retirement Age in SIP Mode -->
+            <div class="form-group-item" id="sipCurrentAgeGroup" style="display: none;">
+              <label for="sipCurrentAge" class="form-label">
+                <span>Current Age</span>
+                <span class="sub-hint">Timeline Anchor</span>
+              </label>
+              <div class="input-control-wrap">
+                <input type="number" id="sipCurrentAge" class="snazzy-input has-suffix" value="40" min="18" max="85" step="1" />
+                <span class="input-symbol-suffix">Yrs Old</span>
+              </div>
+              <div class="input-help-line" id="sipCurrentAgeHelp">Current client age</div>
+            </div>
+
+            <div class="form-group-item" id="sipRetirementAgeGroup" style="display: none;">
+              <label for="sipRetirementAge" class="form-label">
+                <span>Retirement Age</span>
+                <span class="sub-hint">When SWP Begins</span>
+              </label>
+              <div class="input-control-wrap">
+                <input type="number" id="sipRetirementAge" class="snazzy-input has-suffix" value="60" min="19" max="95" step="1" />
+                <span class="input-symbol-suffix">Yrs Old</span>
+              </div>
+              <div class="input-help-line highlight" id="sipRetirementAgeBadge">20 yrs to retirement (Age 40 → 60)</div>
+            </div>
+
+            <div class="form-group-item">
+              <label for="monthlySip" class="form-label">
+                <span id="monthlySipLabelText">Required Monthly SIP</span>
+                <span class="sip-mode-badge pill-gold" id="sipModeBadge">🎯 Auto-Calculated</span>
+              </label>
+              <div class="input-control-wrap">
+                <span class="input-symbol-prefix">₹</span>
+                <input type="number" id="monthlySip" class="snazzy-input has-prefix is-auto-calc" value="38933" min="0" step="1000" />
+              </div>
+              <div class="input-help-line highlight" id="monthlySipWords">₹38,933 / month • Needed to reach retirement goal</div>
+            </div>
+
+            <div class="form-group-item">
+              <label for="sipPeriodYears" class="form-label">
+                <span id="sipPeriodYearsLabel">SIP Period</span>
+                <span class="sub-hint" id="sipPeriodYearsSubHint">Years</span>
+              </label>
+              <div class="input-control-wrap">
+                <input type="number" id="sipPeriodYears" class="snazzy-input has-suffix" value="20" min="1" max="50" step="1" />
+                <span class="input-symbol-suffix">Years</span>
+              </div>
+              <div class="input-help-line" id="sipMonthsWords">240 monthly contributions</div>
+            </div>
+
+            <!-- Step-Up SIP Feature Box -->
+            <div class="form-group-item full-col">
+              <div class="step-up-toggle-card" id="stepUpToggleCard">
+                <div class="step-up-header-row" id="stepUpHeaderRow">
+                  <div class="step-up-left">
+                    <div class="step-up-icon-badge">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                        <polyline points="17 6 23 6 23 12"></polyline>
+                      </svg>
+                    </div>
+                    <div>
+                      <div class="step-up-title-text">
+                        <span>Step-up SIP</span>
+                        <span class="card-stage-pill pill-gold" style="font-size: 10px; padding: 2px 7px;">Optional</span>
+                      </div>
+                      <div class="step-up-subtitle-text">Increase your monthly SIP contribution annually</div>
+                    </div>
+                  </div>
+                  <label class="snazzy-switch" for="stepUpCheckbox">
+                    <input type="checkbox" id="stepUpCheckbox" />
+                    <span class="snazzy-slider"></span>
+                  </label>
+                </div>
+
+                <!-- Collapsible Step-up Inputs -->
+                <div id="stepUpFieldsWrapper" class="step-up-fields-wrapper" style="display: none;">
+                  <div class="stepup-input-group">
+                    <label for="stepUpValue" class="form-label">
+                      <span>Annual SIP Increase (Step-up)</span>
+                      <span class="sub-hint" id="stepUpModeHint">Percentage Mode</span>
+                    </label>
+
+                    <div class="stepup-input-bar">
+                      <div class="input-control-wrap" style="flex: 1;">
+                        <span class="input-symbol-prefix" id="stepUpPrefix" style="display: none;">₹</span>
+                        <input type="number" id="stepUpValue" class="snazzy-input has-suffix" value="10" min="0" max="100000" step="1" />
+                        <span class="input-symbol-suffix" id="stepUpSuffix">%</span>
+                      </div>
+
+                      <!-- Mode Switcher: % vs ₹ (Rs) -->
+                      <div class="stepup-unit-switcher" id="stepUpUnitSwitcher">
+                        <button type="button" class="unit-btn active" id="unitBtnPercent" data-unit="percent">%</button>
+                        <button type="button" class="unit-btn" id="unitBtnRupee" data-unit="amount">₹ (Rs)</button>
+                      </div>
+                    </div>
+
+                    <div class="input-help-line highlight" id="stepUpHelpText">
+                      +10% annual increase (Year 1 = ₹38,933/mo → Year 2 = ₹42,826/mo → Year 3 = ₹47,109/mo)
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group-item">
+              <label for="lumpsum" class="form-label">
+                <span>Initial Lumpsum</span>
+                <span class="sub-hint">Flexible (0 or any amount)</span>
+              </label>
+              <div class="input-control-wrap">
+                <span class="input-symbol-prefix">₹</span>
+                <input type="number" id="lumpsum" class="snazzy-input has-prefix" value="500000" min="0" step="50000" />
+              </div>
+              <div class="input-help-line" id="lumpsumWords">₹5.00 L (Invested in Year 1)</div>
+            </div>
+
+            <div class="form-group-item">
+              <label for="expectedReturn" class="form-label">
+                <span>Expected Return (% p.a.)</span>
+                <span class="sub-hint">Default 12%</span>
+              </label>
+              <div class="input-control-wrap">
+                <input type="number" id="expectedReturn" class="snazzy-input has-suffix" placeholder="12" value="12" min="0" max="40" step="0.25" />
+                <span class="input-symbol-suffix">% p.a.</span>
+              </div>
+              <div class="input-help-line highlight">Compounded annually during SIP</div>
+            </div>
+
+            <div class="form-group-item full-col">
+              <label for="startYear" class="form-label">
+                <span>Plan Start Year</span>
+                <span class="sub-hint">Starting Date</span>
+              </label>
+              <div class="input-control-wrap">
+                <input type="number" id="startYear" class="snazzy-input has-suffix" value="2026" min="2000" max="2099" step="1" />
+                <span class="input-symbol-suffix">Year</span>
+              </div>
+              <div class="input-help-line" id="startYearHelp">Projections begin in 2026</div>
+            </div>
+
+            <!-- Future Expense Milestone Planning (Schooling, Higher Ed, Milestones) -->
+            <div class="form-group-item full-col">
+              <div class="future-expense-toggle-card" id="futureExpenseToggleCard">
+                <div class="step-up-header-row">
+                  <div class="step-up-left">
+                    <div class="step-up-icon-badge" style="background: rgba(137, 18, 40, 0.12); color: var(--snazzy-burgundy);">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                      </svg>
+                    </div>
+                    <div>
+                      <div class="step-up-title-text">
+                        <span>Future Expense</span>
+                        <span class="card-stage-pill pill-burgundy" style="font-size: 10px; padding: 2px 7px;">Goal Withdrawal</span>
+                      </div>
+                      <div class="step-up-subtitle-text">Plan child schooling fees, education, or milestone withdrawals from corpus</div>
+                    </div>
+                  </div>
+                  <label class="snazzy-switch" for="futureExpenseCheckbox">
+                    <input type="checkbox" id="futureExpenseCheckbox" />
+                    <span class="snazzy-slider"></span>
+                  </label>
+                </div>
+
+                <!-- Collapsible Future Expense Inputs -->
+                <div id="futureExpenseFieldsWrapper" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--snazzy-border);">
+                  <div class="fe-config-grid">
+                    <div class="form-group-item">
+                      <label for="feStartYear" class="form-label">
+                        <span>Start Year</span>
+                        <span class="sub-hint">First Expense Year</span>
+                      </label>
+                      <div class="input-control-wrap">
+                        <select id="feStartYear" class="snazzy-input" style="cursor: pointer;"></select>
+                      </div>
+                    </div>
+                    <div class="form-group-item">
+                      <label for="feEndYear" class="form-label">
+                        <span>End Year</span>
+                        <span class="sub-hint">Final Expense Year</span>
+                      </label>
+                      <div class="input-control-wrap">
+                        <select id="feEndYear" class="snazzy-input" style="cursor: pointer;"></select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Quick-Fill All Years Helper -->
+                  <div class="fe-quick-fill-bar">
+                    <span class="fe-quick-fill-label">⚡ Quick-Fill All Selected Years:</span>
+                    <div class="input-control-wrap" style="width: 140px;">
+                      <span class="input-symbol-prefix">₹</span>
+                      <input type="number" id="feQuickFillAmount" class="snazzy-input has-prefix" placeholder="50,000" min="0" step="5000" />
+                    </div>
+                    <button type="button" id="feApplyQuickFillBtn" class="btn-snazzy-secondary" style="padding: 7px 12px; font-size: 11.5px; border-radius: 6px;">
+                      Apply to All
+                    </button>
+                    <span class="sub-hint" style="font-size: 11px; color: var(--snazzy-text-dim);">or customize each year below</span>
+                  </div>
+
+                  <!-- Dynamic Year-by-Year Input Rows -->
+                  <div class="fe-years-list-container">
+                    <div class="fe-years-list-header">
+                      <span>Timeline Year &amp; Age</span>
+                      <span>Expense Amount (₹)</span>
+                    </div>
+                    <div class="fe-years-inputs-list" id="feYearsInputsList">
+                      <!-- Dynamically rendered per year -->
+                    </div>
+                  </div>
+                  
+                  <div class="input-help-line highlight" style="margin-top: 8px;">
+                    ℹ️ Expense is deducted from opening corpus at year start. Interest will accrue only on the remaining balance. If expense exceeds available corpus, a red warning is shown.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Action Buttons for SIP Calculator Mode -->
+            <div class="form-group-item full-col" id="sipActionButtonsRow" style="display: none; margin-top: 8px;">
+              <div class="calc-action-buttons-row">
+                <button id="calculateSipBtn" class="btn-snazzy-gold" style="flex: 1.2; justify-content: center; padding: 12px 18px; font-size: 14.5px;">
+                  <span>Calculate SIP Growth &rarr;</span>
+                </button>
+                <button id="viewSipTablesBtn" class="btn-snazzy-outline" type="button" style="flex: 1; justify-content: center; padding: 12px 16px; font-size: 14px;">
+                  <span>View Calculation Table</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3: Retirement / SWP Assumptions -->
+        <div class="snazzy-card" id="retirementSwpCard">
+          <div class="card-title-row">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--snazzy-gold)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 3v18h18"></path>
+                <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
+              </svg>
+              <span>Retirement / SWP Assumptions</span>
+            </h3>
+            <span class="card-stage-pill pill-gold">Stage 2: Income</span>
+          </div>
+
+          <div class="form-fields-grid">
+            <div class="form-group-item">
+              <label for="inflation" class="form-label">
+                <span>Retirement Inflation</span>
+                <span class="sub-hint">In Retirement (% p.a.)</span>
+              </label>
+              <div class="input-control-wrap">
+                <input type="number" id="inflation" class="snazzy-input has-suffix" placeholder="6" value="6" min="0" max="25" step="0.25" />
+                <span class="input-symbol-suffix">% p.a.</span>
+              </div>
+              <div class="input-help-line highlight">Annual escalation during retirement</div>
+            </div>
+
+            <div class="form-group-item">
+              <label for="swpReturn" class="form-label">
+                <span>SWP Return (% p.a.)</span>
+                <span class="sub-hint">Default 9%</span>
+              </label>
+              <div class="input-control-wrap">
+                <input type="number" id="swpReturn" class="snazzy-input has-suffix" placeholder="9" value="9" min="0" max="30" step="0.25" />
+                <span class="input-symbol-suffix">% p.a.</span>
+              </div>
+              <div class="input-help-line highlight">Post-retirement portfolio return</div>
+            </div>
+
+            <div class="form-group-item full-col">
+              <label for="annualExpenses" class="form-label">
+                <span>Starting Annual Household Expense</span>
+                <span class="sub-hint" id="annualExpensesSubHint">At Age 60 (Year 1 of SWP)</span>
+              </label>
+              <div class="input-control-wrap">
+                <span class="input-symbol-prefix">₹</span>
+                <input type="number" id="annualExpenses" class="snazzy-input has-prefix" value="2796576" min="0" step="50000" />
+              </div>
+              <div class="input-help-line" id="annualExpensesWords">₹27,96,576 / yr (₹2,33,048 / mo) • Inflated from ₹50,000 / mo today (20 yrs @ 8%)</div>
+            </div>
+
+            <!-- Required Retirement Corpus Display Card -->
+            <div class="form-group-item full-col">
+              <div class="ret-corpus-target-box" id="dispRequiredCorpusCard">
+                <div class="ret-corpus-target-header">
+                  <span class="ret-corpus-target-badge">REQUIRED RETIREMENT CORPUS</span>
+                  <span class="ret-corpus-target-dur" id="dispRequiredCorpusDurationBadge">20 Years SWP</span>
+                </div>
+                <div class="ret-corpus-target-display">
+                  <span class="ret-corpus-target-num" id="dispRequiredCorpus">₹4,05,05,695</span>
+                  <span class="ret-corpus-target-compact" id="dispRequiredCorpusWords">(₹4.05 Crore)</span>
+                </div>
+                <div class="ret-corpus-target-detail" id="dispRequiredCorpusDetailText">
+                  Exact month-by-month SWP corpus needed to fund ₹2.33 L/mo growing @ 6% inflation for 20 years.
+                </div>
+                <div class="ret-corpus-status-pill" id="dispCorpusStatusPill">
+                  <span id="dispCorpusStatusIcon">🛡️</span>
+                  <span id="dispCorpusStatusText">Corpus fully sustains 20-year retirement period</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Projection Years (Hidden or Synced with Retirement Sustainability) -->
+            <input type="hidden" id="projectionYears" value="20" />
+
+            <div class="form-group-item full-col" style="margin-top: 6px;">
+              <div class="calc-action-buttons-row">
+                <button id="calculateBtn" class="btn-snazzy-gold" style="flex: 1.2; justify-content: center; padding: 12px 18px; font-size: 14.5px;">
+                  <span id="calculateBtnText">Create My Plan &rarr;</span>
+                </button>
+                <button id="viewTablesBtn" class="btn-snazzy-outline" type="button" style="flex: 1; justify-content: center; padding: 12px 16px; font-size: 14px;">
+                  <span>View Calculation Table</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Summary / Key Results Section -->
+    <section id="snapshotSection" class="snazzy-section">
+      <div class="section-header-block">
+        <h2 class="section-main-heading">
+          <span class="heading-accent"></span>
+          <span id="snapshotSectionTitle">Your Retirement Roadmap</span>
+        </h2>
+        <p class="section-description" id="snapshotSectionDesc">Comprehensive retirement plan summary: investment requirements, lifestyle inflation, and wealth sustainability.</p>
+      </div>
+
+      <!-- Hero Summary Banner: YOUR RETIREMENT PLAN -->
+      <div class="roadmap-hero-banner" id="roadmapHeroBanner">
+        <div class="roadmap-banner-header">
+          <div class="roadmap-badge-group">
+            <span class="roadmap-mode-badge" id="roadmapModeBadge">🎯 GOAL-BASED RETIREMENT ROADMAP</span>
+            <span class="roadmap-timeline-badge" id="roadmapTimelineBadge">Age 40 &rarr; Age 60 &rarr; Age 80 (20 Yrs SWP)</span>
+          </div>
+          <div class="roadmap-status-badge" id="roadmapStatusBadge">
+            ✓ Fully Funded Plan
+          </div>
+        </div>
+
+        <div class="roadmap-banner-grid">
+          <!-- Metric 1: Monthly SIP -->
+          <div class="roadmap-banner-card">
+            <div class="roadmap-card-label" id="roadmapSipLabel">Required Monthly SIP</div>
+            <div class="roadmap-card-value text-gold" id="roadmapSipVal">₹38,933</div>
+            <div class="roadmap-card-sub" id="roadmapSipSub">To retire at Age 60</div>
+          </div>
+
+          <!-- Metric 2: Required Corpus vs Projected -->
+          <div class="roadmap-banner-card">
+            <div class="roadmap-card-label" id="roadmapCorpusLabel">Required Retirement Corpus</div>
+            <div class="roadmap-card-value text-navy" id="roadmapCorpusVal">₹4.05 Cr</div>
+            <div class="roadmap-card-sub" id="roadmapCorpusSub">Projected: ₹4.05 Cr</div>
+          </div>
+
+          <!-- Metric 3: Expense at Retirement / Total Investment in SIP Mode -->
+          <div class="roadmap-banner-card">
+            <div class="roadmap-card-label" id="roadmapMetric3Label">Expense at Retirement</div>
+            <div class="roadmap-card-value text-emerald" id="roadmapExpenseVal">₹2.33 L / mo</div>
+            <div class="roadmap-card-sub" id="roadmapExpenseSub">₹27.97 L / yr (Age 60)</div>
+          </div>
+
+          <!-- Metric 4: Lumpsum Contribution / Wealth Gain in SIP Mode -->
+          <div class="roadmap-banner-card">
+            <div class="roadmap-card-label" id="roadmapMetric4Label">Lumpsum Contribution</div>
+            <div class="roadmap-card-value" id="roadmapLumpVal">₹5.00 L</div>
+            <div class="roadmap-card-sub" id="roadmapLumpSub">Grows to ₹48.23 L at ret.</div>
+          </div>
+
+          <!-- Metric 5: Retirement Sustainability / Multiplier in SIP Mode -->
+          <div class="roadmap-banner-card">
+            <div class="roadmap-card-label" id="roadmapMetric5Label">Retirement Sustainability</div>
+            <div class="roadmap-card-value text-burgundy" id="roadmapSustainVal">20 Years</div>
+            <div class="roadmap-card-sub" id="roadmapSustainSub">Sustains to Age 80</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Advisory Insights & Exhaustion Alert Card -->
+      <div id="advisorySection" class="snazzy-insights-card">
+        <div class="insights-icon-circle" id="insightIconBox">🛡️</div>
+        <div class="insights-text-block">
+          <h4 id="insightHeading">Portfolio Sustainability Analysis</h4>
+          <p id="insightText">Based on the assumptions entered, the projected corpus remains positive throughout the selected retirement projection period.</p>
+          <div class="insights-badges-row">
+            <span>Expected Return: <strong id="metaAccReturn">12.00%</strong></span>
+            <span>SWP Return: <strong id="metaSwpReturn">9.00%</strong></span>
+            <span>Inflation: <strong id="metaInflation">5.00%</strong></span>
+            <span>Initial Withdrawal Rate: <strong id="metaWithdrawalRate">6.50%</strong></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Calculation Tables (MIDDLE POSITION) -->
+    <section id="tablesSection" class="snazzy-section">
+      <div class="section-header-block">
+        <div class="table-toolbar-row">
+          <div>
+            <h2 class="section-main-heading">
+              <span class="heading-accent"></span>
+              <span id="tablesSectionTitle">Financial Projections &amp; Schedules</span>
+            </h2>
+            <p class="section-description" id="tablesSectionDesc">Detailed year-by-year accumulation growth and retirement systematic withdrawal plan schedule.</p>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <div class="table-tab-pills" id="tableTabPills">
+              <button class="table-tab-btn active" data-tab="both" id="tabBtnBoth">Dual View (Side-by-Side)</button>
+              <button class="table-tab-btn" data-tab="acc" id="tabBtnAcc">Accumulation Only</button>
+              <button class="table-tab-btn" data-tab="ret" id="tabBtnRet">Retirement Only</button>
+            </div>
+
+            <button id="quickDownloadExcelBtn" class="btn-snazzy-outline" style="padding: 7px 14px; font-size: 12.5px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span>Download Detailed Excel</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-dual-wrapper" id="dualTableContainer">
+        <!-- Accumulation Stage Table Card -->
+        <div class="snazzy-table-card" id="accTableWrapper">
+          <div class="table-card-banner acc-banner">
+            <div>
+              <div style="font-weight: 700; font-size: 14px;">YOUR WEALTH-BUILDING JOURNEY</div>
+              <div style="font-size: 11px; opacity: 0.85; font-weight: 400;">See how your SIP and initial investment build your corpus over time.</div>
+            </div>
+            <span style="font-size: 11.5px; background: rgba(255,255,255,0.15); padding: 3px 8px; border-radius: 4px;" id="accTableSubheader">
+              SIP ₹35,000/mo @ 12% p.a.
+            </span>
+          </div>
+
+          <div class="table-scroll-container">
+            <table class="snazzy-report-table">
+              <thead>
+                <tr>
+                  <th class="col-center">Year</th>
+                  <th>Amount @ Start of Year</th>
+                  <th id="thFutureExpense">Future Expense</th>
+                  <th>Monthly SIP Amt</th>
+                  <th>Amt Invested Each Year</th>
+                  <th id="thDynamicAccGain">Gain / Yr (12%)</th>
+                  <th>Amt @ Yr End</th>
+                  <th class="col-center">Your Age</th>
+                </tr>
+              </thead>
+              <tbody id="accumulationTableBody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+          <div class="table-footer-status">
+            <span id="accRowCountText" style="font-weight: 600; color: var(--snazzy-navy);">Showing all 20 Years (2026 – 2045)</span>
+            <button id="toggleAccExpandBtn" class="table-expand-btn" type="button" title="Expand or collapse table height">
+              <span>⤢ Expand Full Table</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Retirement / SWP Stage Table Card -->
+        <div class="snazzy-table-card" id="retTableWrapper">
+          <div class="table-card-banner ret-banner">
+            <div>
+              <div style="font-weight: 700; font-size: 14px;">YOUR RETIREMENT INCOME JOURNEY</div>
+              <div style="font-size: 11px; opacity: 0.85; font-weight: 400;">True month-by-month SWP compounding schedule. Click any year to inspect all 12 months.</div>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <button id="toggleMonthlyBreakdownBtn" type="button" class="btn-snazzy-outline" style="padding: 4px 10px; font-size: 11px; background: rgba(255,255,255,0.9); color: var(--snazzy-navy); border-color: rgba(0,0,0,0.15); border-radius: 4px; cursor: pointer; font-weight: 600;">
+                <span>📅 Expand All Months</span>
+              </button>
+              <span style="font-size: 11.5px; background: rgba(0,0,0,0.12); padding: 3px 8px; border-radius: 4px;" id="retTableSubheader">
+                Gain @ 9% / Annum
+              </span>
+            </div>
+          </div>
+
+          <div class="table-scroll-container">
+            <table class="snazzy-report-table">
+              <thead>
+                <tr>
+                  <th class="col-center" style="cursor: pointer;" title="Click any year row to view 12 monthly SWP calculations">Retirement Year</th>
+                  <th>Starting Corpus</th>
+                  <th>Annual Household Expense</th>
+                  <th id="thDynamicGain">Total Gain (9%)</th>
+                  <th>Total Withdrawal</th>
+                  <th>Ending Corpus</th>
+                </tr>
+              </thead>
+              <tbody id="retirementTableBody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+          <div class="table-footer-status">
+            <span id="retRowCountText" style="font-weight: 600; color: var(--snazzy-navy);">Showing 50 Projection Years</span>
+            <button id="toggleRetExpandBtn" class="table-expand-btn" type="button" title="Expand or collapse table height">
+              <span>⤢ Expand Full Table</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Visual Graphs / Charts (LAST POSITION) -->
+    <section id="chartsSection" class="snazzy-section">
+      <div class="section-header-block">
+        <h2 class="section-main-heading">
+          <span class="heading-accent"></span>
+          <span id="chartsSectionTitle">Projected Wealth Journey</span>
+        </h2>
+        <p class="section-description" id="chartsSectionDesc">Visual trajectory tracking wealth accumulation, peak retirement corpus, and SWP longevity.</p>
+      </div>
+
+      <div class="snazzy-charts-grid">
+        <!-- Chart 1: Wealth Journey Line Chart -->
+        <div class="snazzy-chart-card">
+          <div class="chart-card-top">
+            <h3 id="chart1Title">Corpus Progression Trajectory (Accumulation → SWP Phase)</h3>
+            <span style="font-size: 11.5px; color: var(--snazzy-text-dim);" id="chart1Sub">Principal Invested vs Projected Wealth</span>
+          </div>
+          <div class="chart-canvas-wrapper">
+            <canvas id="corpusChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart 2: Annual Household Expenses with Inflation -->
+        <div class="snazzy-chart-card" id="chart2Card">
+          <div class="chart-card-top">
+            <h3 id="chart2Title">Inflation-Adjusted Household Expenses</h3>
+            <span style="font-size: 11.5px; color: var(--snazzy-text-dim);" id="chart2Sub">Rising Expenses vs Annual Portfolio Gains</span>
+          </div>
+          <div class="chart-canvas-wrapper">
+            <canvas id="cashflowChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer Section -->
+    <footer class="snazzy-footer">
+      <div class="footer-top-row">
+        <div class="footer-brand">
+          <img src="./assets/snazzy_logo.png" alt="Snazzy Wealth Logo" class="footer-brand-logo" />
+          <span style="font-family: var(--font-serif); font-size: 18px; font-weight: 700; color: var(--snazzy-navy);">Snazzy Wealth</span>
+          <span style="font-size: 11px; font-weight: 600; color: var(--snazzy-gold); margin-left: 6px;">WealthPlan</span>
+        </div>
+
+        <ul class="footer-nav-links">
+          <li><a href="https://snazzywealth.in/" target="_blank" rel="noopener noreferrer" class="footer-link">Home</a></li>
+          <li><a href="https://snazzywealth.in/#about" target="_blank" rel="noopener noreferrer" class="footer-link">About</a></li>
+          <li><a href="#inputsSection" class="footer-link">Calculators</a></li>
+          <li><a href="https://snazzywealth.in/#contact" target="_blank" rel="noopener noreferrer" class="footer-link">Contact</a></li>
+          <li><a href="https://snazzywealth.in/privacy-policy/" target="_blank" rel="noopener noreferrer" class="footer-link">Privacy Policy</a></li>
+          <li><a href="https://snazzywealth.in/terms-and-conditions/" target="_blank" rel="noopener noreferrer" class="footer-link">Terms &amp; Conditions</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-disclaimer-box">
+        <strong>Important Financial Disclaimer:</strong> This calculator provides an illustration based on the assumptions entered by the user. Actual investment returns, inflation, expenses and market conditions may vary. The projections do not guarantee future returns or outcomes. Mutual fund investments are subject to market risks. Please read all scheme-related documents carefully before investing.
+      </div>
+
+      <div class="footer-bottom-copy">
+        <div>© 2026 Welcome To Snazzy Wealth Pvt. Ltd. All rights reserved.</div>
+        <div>Standard Export: Times New Roman • Indian Rupee (₹) • Active Native Formulas</div>
+      </div>
+    </footer>
+
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
