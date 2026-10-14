@@ -846,6 +846,17 @@ body {
   font-weight: 500;
 }
 
+.snazzy-input.has-error {
+  border-color: #DC2626 !important;
+  background-color: #FEF2F2 !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important;
+}
+
+.input-help-line.has-error-text {
+  color: #DC2626 !important;
+  font-weight: 600 !important;
+}
+
 /* ==========================================================================
    EXECUTIVE SUMMARY / KEY RESULTS CARDS
    ========================================================================== */

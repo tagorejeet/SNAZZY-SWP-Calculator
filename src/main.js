@@ -523,34 +523,121 @@ function applyPlanningModeUI(mode) {
  * Required Monthly SIP (accumulation backward solver)
  * ↓ True Month-by-Month SWP Simulation
  */
+/**
+ * Validates current age and planned retirement age.
+ * Does NOT mutate input values so user can freely backspace and type.
+ * Shows instant error guidance if retirement age is empty or <= current age.
+ */
+function validateAgeInputs() {
+  const isSip = currentPlanningMode === 'sip';
+  const curAgeInput = isSip ? (sipCurrentAgeEl || currentAgeEl) : (currentAgeEl || sipCurrentAgeEl);
+  const retAgeInput = isSip ? (sipRetirementAgeEl || retirementAgeEl) : (retirementAgeEl || sipRetirementAgeEl);
+
+  const curAgeStr = curAgeInput ? curAgeInput.value.trim() : '';
+  const retAgeStr = retAgeInput ? retAgeInput.value.trim() : '';
+
+  const curBadge = isSip ? sipCurrentAgeHelp : currentAgeHelp;
+  const retBadge = isSip ? sipRetirementAgeBadge : retirementAgeBadge;
+
+  // Clear previous error states
+  [currentAgeEl, sipCurrentAgeEl, retirementAgeEl, sipRetirementAgeEl].forEach((el) => {
+    if (el) el.classList.remove('has-error');
+  });
+  if (retirementAgeBadge) retirementAgeBadge.classList.remove('has-error-text');
+  if (sipRetirementAgeBadge) sipRetirementAgeBadge.classList.remove('has-error-text');
+
+  // Validate Current Age
+  if (curAgeStr === '') {
+    [currentAgeEl, sipCurrentAgeEl].forEach((el) => el && el.classList.add('has-error'));
+    if (curBadge) curBadge.textContent = '⚠️ Please enter current client age';
+    return { isValid: false, reason: 'curAgeEmpty' };
+  }
+  const curAge = Number(curAgeStr);
+  if (isNaN(curAge) || curAge < 1) {
+    [currentAgeEl, sipCurrentAgeEl].forEach((el) => el && el.classList.add('has-error'));
+    if (curBadge) curBadge.textContent = '⚠️ Current age must be at least 1 yr old';
+    return { isValid: false, reason: 'curAgeInvalid' };
+  }
+  if (curBadge) {
+    curBadge.textContent = isSip ? `Current client age (${curAge} yrs old)` : 'Current client age';
+  }
+
+  // Validate Retirement Age
+  if (retAgeStr === '') {
+    [retirementAgeEl, sipRetirementAgeEl].forEach((el) => el && el.classList.add('has-error'));
+    const msg = `⚠️ Enter retirement age (must be > current age ${curAge})`;
+    if (retirementAgeBadge) {
+      retirementAgeBadge.classList.add('has-error-text');
+      retirementAgeBadge.textContent = msg;
+    }
+    if (sipRetirementAgeBadge) {
+      sipRetirementAgeBadge.classList.add('has-error-text');
+      sipRetirementAgeBadge.textContent = msg;
+    }
+    if (sipMonthsWords) {
+      sipMonthsWords.textContent = '⚠️ Enter retirement age to calculate monthly contributions';
+    }
+    return { isValid: false, reason: 'retAgeEmpty', curAge };
+  }
+
+  const retAge = Number(retAgeStr);
+  if (isNaN(retAge) || retAge <= curAge) {
+    [retirementAgeEl, sipRetirementAgeEl].forEach((el) => el && el.classList.add('has-error'));
+    let msg = '';
+    if (isNaN(retAge)) {
+      msg = `⚠️ Enter a valid retirement age (must be > current age ${curAge})`;
+    } else if (retAge === curAge) {
+      msg = `⚠️ Retirement age (${retAge}) cannot be equal to current age (${curAge}). Min retirement age is ${curAge + 1}.`;
+    } else {
+      msg = `⚠️ Retirement age (${retAge}) cannot be less than current age (${curAge}). Min retirement age is ${curAge + 1}.`;
+    }
+    if (retirementAgeBadge) {
+      retirementAgeBadge.classList.add('has-error-text');
+      retirementAgeBadge.textContent = msg;
+    }
+    if (sipRetirementAgeBadge) {
+      sipRetirementAgeBadge.classList.add('has-error-text');
+      sipRetirementAgeBadge.textContent = msg;
+    }
+    if (sipMonthsWords) {
+      sipMonthsWords.textContent = `⚠️ Retirement age must be greater than current age (min age ${curAge + 1})`;
+    }
+    return { isValid: false, reason: 'retAgeTooLow', curAge, retAge, message: msg };
+  }
+
+  return { isValid: true, curAge, retAge };
+}
+
 function syncGoalRetirementParameters({ source = 'input' } = {}) {
   if (isSyncingGoalFlow) return;
   isSyncingGoalFlow = true;
 
   try {
+    const ageValidation = validateAgeInputs();
+    if (!ageValidation.isValid) {
+      return;
+    }
+
+    const { curAge, retAge } = ageValidation;
+    let horizon = retAge - curAge;
+
     // In SIP-Based Planning mode: retirement is calculated forward from SIP
     // User directly specifies SIP amount, duration, current age, retirement age, lumpsum, return, and SWP parameters
     if (currentPlanningMode === 'sip') {
-      const curAge = parseNumberInput(sipCurrentAgeEl ? sipCurrentAgeEl.value : (currentAgeEl ? currentAgeEl.value : 40), 40);
-      let rawRetAge = parseNumberInput(sipRetirementAgeEl ? sipRetirementAgeEl.value : (retirementAgeEl ? retirementAgeEl.value : 60), 60);
-      if (rawRetAge <= curAge) {
-        rawRetAge = curAge + 1;
-        if (sipRetirementAgeEl) sipRetirementAgeEl.value = rawRetAge;
-        if (retirementAgeEl) retirementAgeEl.value = rawRetAge;
-      }
-      let horizon = Math.max(1, rawRetAge - curAge);
-
+      const curSip = parseNumberInput(monthlySipEl ? monthlySipEl.value : 35000, 35000);
       let sipYears = horizon;
+      let effectiveRetAge = retAge;
+
       if (source === 'sipAgeInput' || source === 'ageInput' || source === 'init') {
         sipYears = horizon;
         if (sipPeriodYearsEl) sipPeriodYearsEl.value = horizon;
       } else if (source === 'sipPeriodInput') {
         const rawSip = parseNumberInput(sipPeriodYearsEl ? sipPeriodYearsEl.value : horizon, horizon);
         if (rawSip > horizon) {
-          rawRetAge = curAge + rawSip;
-          if (sipRetirementAgeEl) sipRetirementAgeEl.value = rawRetAge;
-          if (retirementAgeEl) retirementAgeEl.value = rawRetAge;
-          horizon = rawRetAge - curAge;
+          effectiveRetAge = curAge + rawSip;
+          if (sipRetirementAgeEl) sipRetirementAgeEl.value = effectiveRetAge;
+          if (retirementAgeEl) retirementAgeEl.value = effectiveRetAge;
+          horizon = effectiveRetAge - curAge;
           sipYears = rawSip;
         } else {
           sipYears = Math.max(1, rawSip);
@@ -560,24 +647,22 @@ function syncGoalRetirementParameters({ source = 'input' } = {}) {
         sipYears = Math.max(1, Math.min(horizon, rawSip));
       }
 
-      const retAge = rawRetAge;
       const pauseYears = Math.max(0, horizon - sipYears);
-      const curSip = parseNumberInput(monthlySipEl ? monthlySipEl.value : 35000, 35000);
 
       if (sipCurrentAgeHelp) {
         sipCurrentAgeHelp.textContent = `Current client age (${curAge} yrs old)`;
       }
       if (sipRetirementAgeBadge) {
-        sipRetirementAgeBadge.textContent = `${horizon} yrs to retirement (Age ${curAge} → ${retAge})`;
+        sipRetirementAgeBadge.textContent = `${horizon} yrs to retirement (Age ${curAge} → ${effectiveRetAge})`;
       }
       if (monthlySipWords) {
         monthlySipWords.textContent = `${formatINR(curSip)} / month (${formatCompactINR(curSip * 12)} / yr)`;
       }
       if (sipMonthsWords) {
         if (pauseYears > 0) {
-          sipMonthsWords.textContent = `${sipYears * 12} monthly contributions (Age ${curAge} to ${curAge + sipYears}) • ${pauseYears} yrs compounding pause (no contributions) to Age ${retAge}`;
+          sipMonthsWords.textContent = `${sipYears * 12} monthly contributions (Age ${curAge} to ${curAge + sipYears}) • ${pauseYears} yrs compounding pause (no contributions) to Age ${effectiveRetAge}`;
         } else {
-          sipMonthsWords.textContent = `${sipYears * 12} monthly contributions (${sipYears} years to Age ${retAge})`;
+          sipMonthsWords.textContent = `${sipYears * 12} monthly contributions (${sipYears} years to Age ${effectiveRetAge})`;
         }
       }
 
@@ -585,16 +670,7 @@ function syncGoalRetirementParameters({ source = 'input' } = {}) {
       return;
     }
 
-    const curAge = Math.max(1, parseNumberInput(currentAgeEl ? currentAgeEl.value : 40, 40));
-    let retAge = Math.max(curAge + 1, parseNumberInput(retirementAgeEl ? retirementAgeEl.value : 60, 60));
-    if (retAge <= curAge) {
-      retAge = curAge + 1;
-      if (retirementAgeEl) retirementAgeEl.value = retAge;
-      if (sipRetirementAgeEl) sipRetirementAgeEl.value = retAge;
-    }
-
-    let horizon = Math.max(1, retAge - curAge);
-
+    let effectiveRetAge = retAge;
     // Read or synchronize SIP Period Years: prefilled automatically as difference (horizon)
     let sipYears = horizon;
     if (source === 'ageInput' || source === 'sipAgeInput' || source === 'init') {
@@ -604,10 +680,10 @@ function syncGoalRetirementParameters({ source = 'input' } = {}) {
       const parsedSip = parseNumberInput(sipPeriodYearsEl.value, horizon);
       if (source === 'sipPeriodInput') {
         if (parsedSip > horizon) {
-          retAge = curAge + parsedSip;
-          if (retirementAgeEl) retirementAgeEl.value = retAge;
-          if (sipRetirementAgeEl) sipRetirementAgeEl.value = retAge;
-          horizon = retAge - curAge;
+          effectiveRetAge = curAge + parsedSip;
+          if (retirementAgeEl) retirementAgeEl.value = effectiveRetAge;
+          if (sipRetirementAgeEl) sipRetirementAgeEl.value = effectiveRetAge;
+          horizon = effectiveRetAge - curAge;
           sipYears = parsedSip;
         } else {
           sipYears = Math.max(1, parsedSip);
@@ -663,7 +739,7 @@ function syncGoalRetirementParameters({ source = 'input' } = {}) {
       dispAnnualExpenseAtRetirement.textContent = formatINR(annualExpAtRet);
     }
     if (dispHouseholdHorizon) {
-      dispHouseholdHorizon.textContent = `At Age ${retAge} (in ${horizon} yrs)`;
+      dispHouseholdHorizon.textContent = `At Age ${effectiveRetAge} (in ${horizon} yrs)`;
     }
     if (dispHouseholdCompoundingNote) {
       dispHouseholdCompoundingNote.textContent = `Compounded from ${formatINR(monthlyExpToday)}/mo over ${horizon} years @ ${preInfPercent}% pre-retirement inflation`;
@@ -672,10 +748,10 @@ function syncGoalRetirementParameters({ source = 'input' } = {}) {
       currentMonthlyExpenseWords.textContent = `${formatINR(monthlyExpToday)} / month (${formatINR(monthlyExpToday * 12)} / yr today)`;
     }
     if (retirementAgeBadge) {
-      retirementAgeBadge.textContent = `${horizon} yrs accumulation horizon (Age ${curAge} to ${retAge})`;
+      retirementAgeBadge.textContent = `${horizon} yrs accumulation horizon (Age ${curAge} to ${effectiveRetAge})`;
     }
     if (sustainabilityHelp) {
-      sustainabilityHelp.textContent = `Sustains household from Age ${retAge} to ${retAge + sustainYears} (${sustainYears * 12} monthly withdrawals)`;
+      sustainabilityHelp.textContent = `Sustains household from Age ${effectiveRetAge} to ${effectiveRetAge + sustainYears} (${sustainYears * 12} monthly withdrawals)`;
     }
 
     // Update sustainability preset chips active class
@@ -726,7 +802,7 @@ function syncGoalRetirementParameters({ source = 'input' } = {}) {
     reqMonthlySip = calculateRequiredMonthlySip({
       targetCorpus: reqCorpus,
       currentAge: curAge,
-      retirementAge: retAge,
+      retirementAge: effectiveRetAge,
       sipPeriodYears: sipYears,
       lumpsum: lumpsumVal,
       expectedReturn: expReturnVal,
@@ -1439,6 +1515,11 @@ function setupListeners() {
   if (calculateSipBtn) {
     calculateSipBtn.addEventListener('click', (e) => {
       e.preventDefault();
+      const ageVal = validateAgeInputs();
+      if (!ageVal.isValid) {
+        if (sipRetirementAgeEl) sipRetirementAgeEl.focus();
+        return;
+      }
       updatePlanInternal();
 
       const sipYrs = parseNumberInput(sipPeriodYearsEl.value, 20);
@@ -1739,6 +1820,11 @@ function setupListeners() {
 
   calculateBtn.addEventListener('click', (e) => {
     e.preventDefault();
+    const ageVal = validateAgeInputs();
+    if (!ageVal.isValid) {
+      if (retirementAgeEl) retirementAgeEl.focus();
+      return;
+    }
     updatePlan();
 
     const sipYrs = parseNumberInput(sipPeriodYearsEl.value, 20);
