@@ -872,8 +872,46 @@ console.log('========================================================');
   console.log(`✔ Case 12 (SIP mode with future expenses in 2043-2045): All 20 rows rendered, expenses deducted, corpus affected Passed`);
 }
 
+// Case 13: Age 20 to 60 Horizon (40 Years) and Custom SIP Period Override
+{
+  // Part A: Default difference (40 years)
+  const resDefault = calculateFinancialPlan({
+    currentAge: 20,
+    retirementAge: 60,
+    sipPeriodYears: 40,
+    monthlySip: 10000,
+    expectedReturn: 12
+  });
+  assert(resDefault.accumulationRows.length === 40, 'Case 13A: Accumulation rows should be 40 years');
+  assert(resDefault.summary.sipActiveYears === 40, 'Case 13A: Active SIP years should be 40');
+  assert(resDefault.summary.growthPauseYears === 0, 'Case 13A: Pause years should be 0');
+
+  // Part B: User customized SIP period to 20 years (20 active + 20 pause)
+  const resCustom = calculateFinancialPlan({
+    currentAge: 20,
+    retirementAge: 60,
+    sipPeriodYears: 20,
+    monthlySip: 10000,
+    expectedReturn: 12
+  });
+  assert(resCustom.accumulationRows.length === 40, 'Case 13B: Accumulation rows should remain 40 years to retirement');
+  assert(resCustom.summary.sipActiveYears === 20, 'Case 13B: Active SIP years should be 20');
+  assert(resCustom.summary.growthPauseYears === 20, 'Case 13B: Pause years should be 20');
+
+  // Part C: calculateRequiredMonthlySip defaults to horizon if sipPeriodYears not specified
+  const reqSipDiff = calculateRequiredMonthlySip({
+    targetCorpus: 50000000,
+    currentAge: 20,
+    retirementAge: 60,
+    expectedReturn: 12
+  });
+  assert(reqSipDiff > 0, 'Case 13C: Required SIP for 40 year horizon must be positive');
+
+  console.log(`✔ Case 13 (Age 20 -> 60: 40 yrs default difference, custom 20 yrs override) Passed`);
+}
+
 console.log('\n========================================================');
-console.log('ALL 20 EXISTING TESTS + ALL 12 GOAL/SIP VALIDATION CASES PASSED 100%!');
+console.log('ALL 20 EXISTING TESTS + ALL 13 GOAL/SIP VALIDATION CASES PASSED 100%!');
 console.log('========================================================');
 
 

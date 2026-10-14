@@ -532,13 +532,37 @@ function syncGoalRetirementParameters({ source = 'input' } = {}) {
     // User directly specifies SIP amount, duration, current age, retirement age, lumpsum, return, and SWP parameters
     if (currentPlanningMode === 'sip') {
       const curAge = parseNumberInput(sipCurrentAgeEl ? sipCurrentAgeEl.value : (currentAgeEl ? currentAgeEl.value : 40), 40);
-      const rawRetAge = parseNumberInput(sipRetirementAgeEl ? sipRetirementAgeEl.value : (retirementAgeEl ? retirementAgeEl.value : 60), 60);
-      const curSip = parseNumberInput(monthlySipEl ? monthlySipEl.value : 35000, 35000);
-      const rawSipYears = parseNumberInput(sipPeriodYearsEl ? sipPeriodYearsEl.value : 20, 20);
-      const sipYears = Math.max(1, rawSipYears);
-      const retAge = Math.max(curAge + sipYears, Math.max(curAge + 1, rawRetAge));
-      const horizon = retAge - curAge;
+      let rawRetAge = parseNumberInput(sipRetirementAgeEl ? sipRetirementAgeEl.value : (retirementAgeEl ? retirementAgeEl.value : 60), 60);
+      if (rawRetAge <= curAge) {
+        rawRetAge = curAge + 1;
+        if (sipRetirementAgeEl) sipRetirementAgeEl.value = rawRetAge;
+        if (retirementAgeEl) retirementAgeEl.value = rawRetAge;
+      }
+      let horizon = Math.max(1, rawRetAge - curAge);
+
+      let sipYears = horizon;
+      if (source === 'sipAgeInput' || source === 'ageInput' || source === 'init') {
+        sipYears = horizon;
+        if (sipPeriodYearsEl) sipPeriodYearsEl.value = horizon;
+      } else if (source === 'sipPeriodInput') {
+        const rawSip = parseNumberInput(sipPeriodYearsEl ? sipPeriodYearsEl.value : horizon, horizon);
+        if (rawSip > horizon) {
+          rawRetAge = curAge + rawSip;
+          if (sipRetirementAgeEl) sipRetirementAgeEl.value = rawRetAge;
+          if (retirementAgeEl) retirementAgeEl.value = rawRetAge;
+          horizon = rawRetAge - curAge;
+          sipYears = rawSip;
+        } else {
+          sipYears = Math.max(1, rawSip);
+        }
+      } else {
+        const rawSip = parseNumberInput(sipPeriodYearsEl ? sipPeriodYearsEl.value : horizon, horizon);
+        sipYears = Math.max(1, Math.min(horizon, rawSip));
+      }
+
+      const retAge = rawRetAge;
       const pauseYears = Math.max(0, horizon - sipYears);
+      const curSip = parseNumberInput(monthlySipEl ? monthlySipEl.value : 35000, 35000);
 
       if (sipCurrentAgeHelp) {
         sipCurrentAgeHelp.textContent = `Current client age (${curAge} yrs old)`;
@@ -566,27 +590,25 @@ function syncGoalRetirementParameters({ source = 'input' } = {}) {
     if (retAge <= curAge) {
       retAge = curAge + 1;
       if (retirementAgeEl) retirementAgeEl.value = retAge;
+      if (sipRetirementAgeEl) sipRetirementAgeEl.value = retAge;
     }
 
     let horizon = Math.max(1, retAge - curAge);
 
-    // Read or synchronize SIP Period Years
+    // Read or synchronize SIP Period Years: prefilled automatically as difference (horizon)
     let sipYears = horizon;
-    if (sipPeriodYearsEl && sipPeriodYearsEl.value.trim() !== '') {
+    if (source === 'ageInput' || source === 'sipAgeInput' || source === 'init') {
+      sipYears = horizon;
+      if (sipPeriodYearsEl) sipPeriodYearsEl.value = horizon;
+    } else if (sipPeriodYearsEl && sipPeriodYearsEl.value.trim() !== '') {
       const parsedSip = parseNumberInput(sipPeriodYearsEl.value, horizon);
       if (source === 'sipPeriodInput') {
         if (parsedSip > horizon) {
           retAge = curAge + parsedSip;
           if (retirementAgeEl) retirementAgeEl.value = retAge;
+          if (sipRetirementAgeEl) sipRetirementAgeEl.value = retAge;
           horizon = retAge - curAge;
           sipYears = parsedSip;
-        } else {
-          sipYears = Math.max(1, parsedSip);
-        }
-      } else if (source === 'ageInput') {
-        if (parsedSip > horizon) {
-          sipYears = horizon;
-          sipPeriodYearsEl.value = horizon;
         } else {
           sipYears = Math.max(1, parsedSip);
         }
@@ -1473,33 +1495,44 @@ function setupListeners() {
   }
 
   // 3. Card 1 & Card 2 Age Inputs
+  const handleCurrentAgeChange = () => {
+    if (sipCurrentAgeEl) sipCurrentAgeEl.value = currentAgeEl.value;
+    syncGoalRetirementParameters({ source: 'ageInput' });
+    syncFutureExpenseYearOptions();
+  };
   if (currentAgeEl) {
-    currentAgeEl.addEventListener('input', () => {
-      if (sipCurrentAgeEl) sipCurrentAgeEl.value = currentAgeEl.value;
-      syncFutureExpenseYearOptions();
-      syncGoalRetirementParameters({ source: 'ageInput' });
-    });
+    currentAgeEl.addEventListener('input', handleCurrentAgeChange);
+    currentAgeEl.addEventListener('change', handleCurrentAgeChange);
   }
+
+  const handleRetirementAgeChange = () => {
+    if (sipRetirementAgeEl) sipRetirementAgeEl.value = retirementAgeEl.value;
+    syncGoalRetirementParameters({ source: 'ageInput' });
+    syncFutureExpenseYearOptions();
+  };
   if (retirementAgeEl) {
-    retirementAgeEl.addEventListener('input', () => {
-      if (sipRetirementAgeEl) sipRetirementAgeEl.value = retirementAgeEl.value;
-      syncFutureExpenseYearOptions();
-      syncGoalRetirementParameters({ source: 'ageInput' });
-    });
+    retirementAgeEl.addEventListener('input', handleRetirementAgeChange);
+    retirementAgeEl.addEventListener('change', handleRetirementAgeChange);
   }
+
+  const handleSipCurrentAgeChange = () => {
+    if (currentAgeEl) currentAgeEl.value = sipCurrentAgeEl.value;
+    syncGoalRetirementParameters({ source: 'sipAgeInput' });
+    syncFutureExpenseYearOptions();
+  };
   if (sipCurrentAgeEl) {
-    sipCurrentAgeEl.addEventListener('input', () => {
-      if (currentAgeEl) currentAgeEl.value = sipCurrentAgeEl.value;
-      syncFutureExpenseYearOptions();
-      syncGoalRetirementParameters({ source: 'sipAgeInput' });
-    });
+    sipCurrentAgeEl.addEventListener('input', handleSipCurrentAgeChange);
+    sipCurrentAgeEl.addEventListener('change', handleSipCurrentAgeChange);
   }
+
+  const handleSipRetirementAgeChange = () => {
+    if (retirementAgeEl) retirementAgeEl.value = sipRetirementAgeEl.value;
+    syncGoalRetirementParameters({ source: 'sipAgeInput' });
+    syncFutureExpenseYearOptions();
+  };
   if (sipRetirementAgeEl) {
-    sipRetirementAgeEl.addEventListener('input', () => {
-      if (retirementAgeEl) retirementAgeEl.value = sipRetirementAgeEl.value;
-      syncFutureExpenseYearOptions();
-      syncGoalRetirementParameters({ source: 'sipAgeInput' });
-    });
+    sipRetirementAgeEl.addEventListener('input', handleSipRetirementAgeChange);
+    sipRetirementAgeEl.addEventListener('change', handleSipRetirementAgeChange);
   }
 
   const otherGoalInputs = [
@@ -1510,17 +1543,19 @@ function setupListeners() {
 
   otherGoalInputs.forEach((input) => {
     input.addEventListener('input', () => {
-      syncFutureExpenseYearOptions();
       syncGoalRetirementParameters({ source: 'goalInput' });
+      syncFutureExpenseYearOptions();
     });
   });
 
   // 4. Card 2 Inputs: Investment Inputs
   if (sipPeriodYearsEl) {
-    sipPeriodYearsEl.addEventListener('input', () => {
-      syncFutureExpenseYearOptions();
+    const handleSipPeriodChange = () => {
       syncGoalRetirementParameters({ source: 'sipPeriodInput' });
-    });
+      syncFutureExpenseYearOptions();
+    };
+    sipPeriodYearsEl.addEventListener('input', handleSipPeriodChange);
+    sipPeriodYearsEl.addEventListener('change', handleSipPeriodChange);
   }
 
   if (monthlySipEl) {
