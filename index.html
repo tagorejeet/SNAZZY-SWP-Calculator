@@ -382,16 +382,40 @@
               <div class="input-help-line highlight">Compounded annually during SIP</div>
             </div>
 
-            <div class="form-group-item full-col">
+            <div class="form-group-item">
+              <label for="startMonth" class="form-label">
+                <span>Plan Start Month</span>
+                <span class="sub-hint">Starting Month</span>
+              </label>
+              <div class="input-control-wrap">
+                <select id="startMonth" class="snazzy-input" style="cursor: pointer;">
+                  <option value="1">January</option>
+                  <option value="2">February</option>
+                  <option value="3">March</option>
+                  <option value="4">April</option>
+                  <option value="5">May</option>
+                  <option value="6">June</option>
+                  <option value="7">July</option>
+                  <option value="8">August</option>
+                  <option value="9">September</option>
+                  <option value="10">October</option>
+                  <option value="11" selected>November</option>
+                  <option value="12">December</option>
+                </select>
+              </div>
+              <div class="input-help-line" id="startMonthHelp">Starts in November</div>
+            </div>
+
+            <div class="form-group-item">
               <label for="startYear" class="form-label">
                 <span>Plan Start Year</span>
-                <span class="sub-hint">Starting Date</span>
+                <span class="sub-hint">Starting Year</span>
               </label>
               <div class="input-control-wrap">
                 <input type="number" id="startYear" class="snazzy-input has-suffix" value="2026" min="2000" max="2099" step="1" />
                 <span class="input-symbol-suffix">Year</span>
               </div>
-              <div class="input-help-line" id="startYearHelp">Projections begin in 2026</div>
+              <div class="input-help-line" id="startYearHelp">Projections begin in Nov 2026</div>
             </div>
 
             <!-- Future Expense Milestone Planning (Schooling, Higher Ed, Milestones) -->

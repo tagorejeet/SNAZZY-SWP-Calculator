@@ -47,7 +47,7 @@ export function renderCharts(planData) {
   // Accumulation points
   accumulationRows.forEach((row, idx) => {
     cumInvested += row.annualSip;
-    const label = isSipMode ? `Yr ${row.yearNumber} (${row.calendarYear})` : `Age ${row.age} (Y${row.yearNumber})`;
+    const label = isSipMode ? `Yr ${row.yearNumber} (${row.yearLabel || row.calendarYear})` : `Age ${row.age} (Y${row.yearNumber})`;
     labels.push(label);
     corpusValues.push(row.endAmount);
     investedValues.push(cumInvested);
@@ -188,7 +188,7 @@ export function renderCharts(planData) {
     let chart2Datasets = [];
 
     if (isSipMode) {
-      chart2Labels = accumulationRows.map(r => `Yr ${r.yearNumber} (${r.calendarYear})`);
+      chart2Labels = accumulationRows.map(r => `Yr ${r.yearNumber} (${r.yearLabel || r.calendarYear})`);
       chart2Datasets = [
         {
           type: 'bar',

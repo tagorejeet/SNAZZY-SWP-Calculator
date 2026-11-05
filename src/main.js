@@ -3,6 +3,10 @@ import {
   calculateRequiredRetirementCorpus,
   calculateRequiredMonthlySip,
   reverseEngineerRetirementGoal,
+  formatYearPeriod,
+  formatPeriodSpan,
+  MONTH_NAMES_SHORT,
+  MONTH_NAMES_FULL,
 } from './calculator.js';
 import { downloadExcelFile } from './excelExport.js';
 import { renderCharts } from './chartManager.js';
@@ -55,6 +59,8 @@ const sipMonthsWords = document.getElementById('sipMonthsWords');
 const lumpsumEl = document.getElementById('lumpsum');
 const lumpsumWords = document.getElementById('lumpsumWords');
 const expectedReturnEl = document.getElementById('expectedReturn');
+const startMonthEl = document.getElementById('startMonth');
+const startMonthHelp = document.getElementById('startMonthHelp');
 const startYearEl = document.getElementById('startYear');
 const startYearHelp = document.getElementById('startYearHelp');
 
@@ -228,6 +234,7 @@ let debounceTimeout = null;
 function syncFutureExpenseYearOptions() {
   if (!feStartYearEl || !feEndYearEl) return;
   const startYr = parseNumberInput(startYearEl ? startYearEl.value : 2026, 2026);
+  const startMo = parseNumberInput(startMonthEl ? startMonthEl.value : 11, 11);
   const curAge = parseNumberInput(currentAgeEl ? currentAgeEl.value : 40, 40);
   const retAge = parseNumberInput(retirementAgeEl ? retirementAgeEl.value : 60, 60);
   const isSip = currentPlanningMode === 'sip';
@@ -258,14 +265,18 @@ function syncFutureExpenseYearOptions() {
   feEndYearEl.innerHTML = '';
 
   for (let y = startYr; y <= maxAccYear; y++) {
+    const yearIdx = y - startYr + 1;
+    const yearPeriodLabel = formatYearPeriod(startMo, yearIdx, startYr);
+    const labelText = startMo !== 1 ? `${yearPeriodLabel} (Yr ${yearIdx})` : `${y} (Yr ${yearIdx})`;
+
     const optStart = document.createElement('option');
     optStart.value = y;
-    optStart.textContent = `${y} (Yr ${y - startYr + 1})`;
+    optStart.textContent = labelText;
     feStartYearEl.appendChild(optStart);
 
     const optEnd = document.createElement('option');
     optEnd.value = y;
-    optEnd.textContent = `${y} (Yr ${y - startYr + 1})`;
+    optEnd.textContent = labelText;
     feEndYearEl.appendChild(optEnd);
   }
 
@@ -285,6 +296,7 @@ function syncFutureExpenseYearOptions() {
 function renderFutureExpenseYearInputs() {
   if (!feYearsInputsList || !feStartYearEl || !feEndYearEl) return;
   const startYr = parseNumberInput(startYearEl ? startYearEl.value : 2026, 2026);
+  const startMo = parseNumberInput(startMonthEl ? startMonthEl.value : 11, 11);
   const curAge = parseNumberInput(currentAgeEl ? currentAgeEl.value : 40, 40);
   let fromY = Number(feStartYearEl.value) || startYr;
   let toY = Number(feEndYearEl.value) || (startYr + 4);
@@ -296,12 +308,14 @@ function renderFutureExpenseYearInputs() {
 
   let html = '';
   for (let y = fromY; y <= toY; y++) {
+    const yearIdx = y - startYr + 1;
+    const yearPeriodLabel = formatYearPeriod(startMo, yearIdx, startYr);
     const age = curAge + (y - startYr);
     const existingVal = futureExpensesMap[y] !== undefined && futureExpensesMap[y] > 0 ? futureExpensesMap[y] : '';
     html += `
       <div class="fe-year-row">
         <div class="fe-year-label">
-          <span>${y}</span>
+          <span>${startMo !== 1 ? yearPeriodLabel : y}</span>
           <span class="fe-year-badge">Age ${age}</span>
         </div>
         <div class="input-control-wrap fe-year-input-wrap">
@@ -768,6 +782,7 @@ function syncGoalRetirementParameters({ source = 'input' } = {}) {
 
     // 2. Calculate Required Retirement Corpus using True Month-by-Month SWP Engine
     const startYr = parseNumberInput(startYearEl ? startYearEl.value : 2026, 2026);
+    const startMo = parseNumberInput(startMonthEl ? startMonthEl.value : 11, 11);
     const reqCorpus = calculateRequiredRetirementCorpus({
       annualExpensesAtRetirement: annualExpAtRet,
       monthlyExpenseAtRetirement: monthlyExpAtRet,
@@ -776,6 +791,7 @@ function syncGoalRetirementParameters({ source = 'input' } = {}) {
       retirementSustainabilityYears: sustainYears,
       futureExpenses: futureExpensesMap,
       startYear: startYr,
+      startMonth: startMo,
       totalAccYears: horizon,
     });
 
@@ -812,6 +828,7 @@ function syncGoalRetirementParameters({ source = 'input' } = {}) {
       futureExpensesEnabled: Boolean(futureExpenseCheckbox && futureExpenseCheckbox.checked),
       futureExpenses: futureExpensesMap,
       startYear: startYr,
+      startMonth: startMo,
     });
 
     if (currentPlanningMode === 'goal') {
@@ -897,6 +914,7 @@ function readInputs() {
     projectionYears: sustainYears,
     retirementSustainabilityYears: sustainYears,
     startYear: startYearEl ? parseNumberInput(startYearEl.value, 2026) : 2026,
+    startMonth: startMonthEl ? parseNumberInput(startMonthEl.value, 11) : 11,
     stepUpEnabled: stepUpCheckbox ? stepUpCheckbox.checked : false,
     stepUpType: currentStepUpMode,
     stepUpValue: parseNumberInput(stepUpValue ? stepUpValue.value : 0, 0),
@@ -966,10 +984,18 @@ function updateInputSubtexts(inputs) {
     annualExpensesSubHint.textContent = `At Age ${inputs.retirementAge} (Year 1 of SWP)`;
   }
 
+  const moIdx = Math.max(1, Math.min(12, inputs.startMonth || 11)) - 1;
+  const monthNameShort = MONTH_NAMES_SHORT[moIdx];
+  const monthNameFull = MONTH_NAMES_FULL[moIdx];
+
   if (startYearHelp) {
     startYearHelp.textContent = currentPlanningMode === 'sip'
-      ? `Projections begin in ${inputs.startYear}`
-      : `Projections begin in ${inputs.startYear} (Age ${inputs.currentAge})`;
+      ? `Projections begin in ${monthNameShort} ${inputs.startYear}`
+      : `Projections begin in ${monthNameShort} ${inputs.startYear} (Age ${inputs.currentAge})`;
+  }
+
+  if (startMonthHelp) {
+    startMonthHelp.textContent = `Starts in ${monthNameFull}`;
   }
 
   const monthlyExpToday = Math.round(inputs.annualExpensesToday / 12);
@@ -1019,7 +1045,8 @@ function updatePlanInternal(overrides = {}) {
   }
   if (roadmapTimelineBadge) {
     if (isSip) {
-      roadmapTimelineBadge.textContent = `${summary.totalAccYears} Years Growth (${inputs.startYear} – ${inputs.startYear + summary.totalAccYears - 1})`;
+      const periodSpanText = formatPeriodSpan(inputs.startMonth || 11, inputs.startYear, summary.totalAccYears);
+      roadmapTimelineBadge.textContent = `${summary.totalAccYears} Years Growth (${periodSpanText})`;
     } else {
       const endRetAge = summary.retirementStartAge + summary.retirementSustainabilityYears;
       roadmapTimelineBadge.textContent = `Age ${inputs.currentAge} → Age ${summary.retirementStartAge} → Age ${endRetAge} (${summary.retirementSustainabilityYears} Yrs SWP)`;
@@ -1226,13 +1253,14 @@ function updatePlanInternal(overrides = {}) {
   // Table Row Count Texts
   const endAccYear = summary.startYear + summary.totalAccYears - 1;
   const endAccAge = inputs.currentAge + summary.totalAccYears - 1;
+  const periodSpanText = formatPeriodSpan(inputs.startMonth || 11, summary.startYear, summary.totalAccYears);
   if (accRowCountText) {
     if (isSip) {
       const detailNote = summary.growthPauseYears > 0 ? ` (${summary.sipActiveYears} yrs active SIP + ${summary.growthPauseYears} yrs compounding / withdrawals)` : '';
-      accRowCountText.textContent = `Showing all ${summary.totalAccYears} Years (${summary.startYear} – ${endAccYear}${detailNote})`;
+      accRowCountText.textContent = `Showing all ${summary.totalAccYears} Years (${periodSpanText}${detailNote})`;
     } else {
       const detailNote = summary.growthPauseYears > 0 ? ` (${summary.sipActiveYears} yrs active SIP + ${summary.growthPauseYears} yrs compounding)` : '';
-      accRowCountText.textContent = `Showing all ${summary.totalAccYears} Years (${summary.startYear} – ${endAccYear} • Age ${inputs.currentAge} to ${endAccAge}${detailNote})`;
+      accRowCountText.textContent = `Showing all ${summary.totalAccYears} Years (${periodSpanText} • Age ${inputs.currentAge} to ${endAccAge}${detailNote})`;
     }
   }
 
@@ -1289,7 +1317,7 @@ function renderAccumulationTable(rows) {
 
     html += `
       <tr class="${rowClass}">
-        <td class="col-center" style="font-weight: 600; color: var(--snazzy-text-dim);">${row.calendarYear}</td>
+        <td class="col-center" style="font-weight: 600; color: var(--snazzy-text-dim);" title="${row.yearLabel || row.calendarYear}">${row.yearLabel || row.calendarYear}</td>
         <td style="font-weight: 600;">${startAmtDisplay}</td>
         <td>${expenseDisplay}</td>
         <td>${sipColDisplay}</td>
@@ -1328,11 +1356,13 @@ function renderRetirementTable(rows, summary) {
       ? ` <span style="font-size: 9.5px; color: var(--snazzy-text-dim); background: #F1F5F9; padding: 1px 4px; border-radius: 3px;" title="Inflated at ${formatPercent(row.inflationRate * 100)} p.a.">(+${formatPercent(row.inflationRate * 100)})</span>`
       : '';
 
+    const yearPeriodDisplay = row.yearLabel ? ` <span style="font-size: 11px; color: var(--snazzy-text-dim); font-weight: 500;">(${row.yearLabel})</span>` : '';
+
     html += `
       <tr class="${rowClass}" data-year="${row.yearNumber}">
         <td class="col-center" style="font-weight: 600; text-align: left; padding-left: 14px;">
           <span class="ret-expand-icon">▶</span>
-          <span style="font-weight: 700; color: var(--snazzy-navy);">Yr ${row.yearNumber}</span>
+          <span style="font-weight: 700; color: var(--snazzy-navy);">Yr ${row.yearNumber}</span>${yearPeriodDisplay}
           &nbsp;${agePill}
         </td>
         <td style="font-weight: 600;">${row.beginningCorpus > 0 ? formatINR(row.beginningCorpus) : '<span style="color:#94A3B8;">₹0</span>'}</td>
@@ -1361,7 +1391,7 @@ function renderRetirementTable(rows, summary) {
           <td colspan="6">
             <div class="ret-monthly-card">
               <div class="ret-monthly-header">
-                <span>📅 Year ${row.yearNumber} Month-by-Month SWP Breakdown (Age ${row.age})</span>
+                <span>📅 Year ${row.yearNumber}${row.yearLabel ? ` (${row.yearLabel})` : ''} Month-by-Month SWP Breakdown (Age ${row.age})</span>
                 <span style="font-size: 11px; font-weight: 500; color: var(--snazzy-text-dim);">
                   Monthly Return: ${monthlySwpRate}% (${summary.swpReturn}%/12) • Monthly Withdrawal: ${formatINR(monthlyWithdrawalTarget)}
                 </span>
@@ -1381,7 +1411,7 @@ function renderRetirementTable(rows, summary) {
                   <tbody>
                     ${row.months.map(m => `
                       <tr>
-                        <td class="col-center" style="font-weight: 600; color: var(--snazzy-text-dim);">Month ${m.month}</td>
+                        <td class="col-center" style="font-weight: 600; color: var(--snazzy-text-dim);">${m.monthLabel ? `Month ${m.month} (${m.monthLabel})` : `Month ${m.month}`}</td>
                         <td style="font-weight: 600;">${m.openingCorpus > 0 ? formatINR(m.openingCorpus) : '₹0'}</td>
                         <td style="color: ${m.monthlyWithdrawal > 0 ? 'var(--snazzy-burgundy)' : '#94A3B8'}; font-weight: 600;">
                           ${m.monthlyWithdrawal > 0 ? formatINR(m.monthlyWithdrawal) : '₹0'}
@@ -1654,6 +1684,7 @@ function setupListeners() {
   const investInputs = [
     lumpsumEl,
     expectedReturnEl,
+    startMonthEl,
     startYearEl,
     stepUpValue,
   ].filter(Boolean);
@@ -1661,6 +1692,9 @@ function setupListeners() {
   investInputs.forEach((input) => {
     input.addEventListener('input', () => {
       syncGoalRetirementParameters({ source: 'investInput' });
+    });
+    input.addEventListener('change', () => {
+      syncGoalRetirementParameters({ source: 'investChange' });
     });
   });
 
@@ -1771,6 +1805,11 @@ function setupListeners() {
   }
   if (startYearEl) {
     startYearEl.addEventListener('change', () => {
+      syncFutureExpenseYearOptions();
+    });
+  }
+  if (startMonthEl) {
+    startMonthEl.addEventListener('change', () => {
       syncFutureExpenseYearOptions();
     });
   }

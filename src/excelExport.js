@@ -57,7 +57,7 @@ export async function generateExcelWorkbook(planData) {
 
   // Set column widths (14 Columns: A through N)
   sheet.columns = [
-    { key: 'A', width: 12 }, // Year
+    { key: 'A', width: (inputs.startMonth && inputs.startMonth !== 1) ? 22 : 12 }, // Year
     { key: 'B', width: 22 }, // Amount @ Start of Year
     { key: 'C', width: 18 }, // Future Expense
     { key: 'D', width: 18 }, // Monthly SIP Amt
@@ -340,10 +340,14 @@ export async function generateExcelWorkbook(planData) {
 
       // A: Year
       const cellA = sheet.getCell(`A${rowNum}`);
-      if (i === 0) {
-        cellA.value = inputs.startYear;
+      if (inputs.startMonth && inputs.startMonth !== 1) {
+        cellA.value = acc.yearLabel || `${acc.calendarYear}`;
       } else {
-        cellA.value = { formula: `A${rowNum - 1}+1`, result: acc.calendarYear };
+        if (i === 0) {
+          cellA.value = inputs.startYear;
+        } else {
+          cellA.value = { formula: `A${rowNum - 1}+1`, result: acc.calendarYear };
+        }
       }
       cellA.alignment = { horizontal: 'center', vertical: 'middle' };
       cellA.font = { name: FONT_NAME, size: 10 };

@@ -910,8 +910,52 @@ console.log('========================================================');
   console.log(`✔ Case 13 (Age 20 -> 60: 40 yrs default difference, custom 20 yrs override) Passed`);
 }
 
+// Case 14: Month field selection & 1-year period calculation (e.g. November 2026)
+{
+  const { formatPeriodSpan, formatYearPeriod } = await import('../src/calculator.js');
+
+  const resNov = calculateFinancialPlan({
+    monthlySip: 35000,
+    sipPeriodYears: 20,
+    currentAge: 40,
+    retirementAge: 60,
+    startYear: 2026,
+    startMonth: 11, // November 2026
+    expectedReturn: 12,
+  });
+
+  assert(resNov.inputs.startMonth === 11, 'Case 14: inputs.startMonth must be 11');
+  assert(resNov.summary.startMonth === 11, 'Case 14: summary.startMonth must be 11');
+  assert(resNov.accumulationRows[0].yearLabel === 'Nov 2026 - Oct 2027', 'Case 14: Yr 1 label must be Nov 2026 - Oct 2027');
+  assert(resNov.accumulationRows[1].yearLabel === 'Nov 2027 - Oct 2028', 'Case 14: Yr 2 label must be Nov 2027 - Oct 2028');
+  assert(resNov.retirementRows[0].yearLabel === 'Nov 2046 - Oct 2047', 'Case 14: Retirement Yr 1 label must be Nov 2046 - Oct 2047');
+  assert(resNov.retirementRows[0].months[0].monthLabel === 'Nov 2046', 'Case 14: Month 1 must be Nov 2046');
+  assert(resNov.retirementRows[0].months[11].monthLabel === 'Oct 2047', 'Case 14: Month 12 must be Oct 2047');
+
+  const resJan = calculateFinancialPlan({
+    monthlySip: 35000,
+    sipPeriodYears: 20,
+    startYear: 2026,
+    startMonth: 1, // January 2026
+  });
+  assert(resJan.accumulationRows[0].yearLabel === '2026', 'Case 14: Jan Yr 1 label must be 2026');
+
+  const resApr = calculateFinancialPlan({
+    monthlySip: 35000,
+    sipPeriodYears: 20,
+    startYear: 2026,
+    startMonth: 4, // April 2026
+  });
+  assert(resApr.accumulationRows[0].yearLabel === 'Apr 2026 - Mar 2027', 'Case 14: Apr Yr 1 label must be Apr 2026 - Mar 2027');
+
+  assert(formatPeriodSpan(11, 2026, 20) === 'Nov 2026 - Oct 2046', 'Case 14: Period span must be Nov 2026 - Oct 2046');
+  assert(formatPeriodSpan(1, 2026, 20) === '2026 - 2045', 'Case 14: Jan period span must be 2026 - 2045');
+
+  console.log(`✔ Case 14 (Month field selection & 1-year period calculation from chosen month) Passed`);
+}
+
 console.log('\n========================================================');
-console.log('ALL 20 EXISTING TESTS + ALL 13 GOAL/SIP VALIDATION CASES PASSED 100%!');
+console.log('ALL 20 EXISTING TESTS + ALL 14 GOAL/SIP VALIDATION CASES PASSED 100%!');
 console.log('========================================================');
 
 

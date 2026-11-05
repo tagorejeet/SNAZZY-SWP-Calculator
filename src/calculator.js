@@ -3,6 +3,54 @@
  * All math performed with full floating point precision.
  */
 
+export const MONTH_NAMES_SHORT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+];
+
+export const MONTH_NAMES_FULL = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+/**
+ * Formats a 1-year planning period string starting from a specific month and year.
+ * e.g., startMonth=11, yearIndex=1, baseStartYear=2026 -> "Nov 2026 - Oct 2027"
+ * e.g., startMonth=1, yearIndex=1, baseStartYear=2026 -> "2026"
+ *
+ * @param {number} startMonth 1-12
+ * @param {number} yearIndex 1, 2, ...
+ * @param {number} baseStartYear e.g. 2026
+ * @returns {string} Formatted year period
+ */
+export function formatYearPeriod(startMonth, yearIndex, baseStartYear) {
+  const startY = baseStartYear + yearIndex - 1;
+  const mo = Math.max(1, Math.min(12, Number(startMonth) || 1));
+  if (mo === 1) {
+    return `${startY}`;
+  }
+  const endMonth = mo === 1 ? 12 : mo - 1;
+  const endY = mo === 1 ? startY : startY + 1;
+  return `${MONTH_NAMES_SHORT[mo - 1]} ${startY} - ${MONTH_NAMES_SHORT[endMonth - 1]} ${endY}`;
+}
+
+/**
+ * Formats a multi-year period span from start to finish.
+ * e.g. startMonth=11, baseStartYear=2026, totalYears=20 -> "Nov 2026 - Oct 2046"
+ * e.g. startMonth=1, baseStartYear=2026, totalYears=20 -> "2026 - 2045"
+ */
+export function formatPeriodSpan(startMonth, baseStartYear, totalYears) {
+  const mo = Math.max(1, Math.min(12, Number(startMonth) || 1));
+  const startY = Number(baseStartYear) || 2026;
+  const numYears = Math.max(1, Number(totalYears) || 1);
+  if (mo === 1) {
+    return `${startY} - ${startY + numYears - 1}`;
+  }
+  const endMonth = mo === 1 ? 12 : mo - 1;
+  const endY = startY + numYears;
+  return `${MONTH_NAMES_SHORT[mo - 1]} ${startY} - ${MONTH_NAMES_SHORT[endMonth - 1]} ${endY}`;
+}
+
 /**
  * Simulates a single retirement year using true month-by-month SWP calculation.
  *
@@ -22,6 +70,8 @@ export function simulateYearlySwp({
   annualExpense = 0,
   annualReturn = 0.09, // as decimal fraction, e.g. 0.06
   futureExpense = 0,   // Goal expense deducted at year start if any
+  startMonth = 1,
+  startYear = 2026,
 }) {
   const monthlyReturn = annualReturn / 12;
   const targetMonthlyWithdrawal = annualExpense / 12;
@@ -35,6 +85,9 @@ export function simulateYearlySwp({
   let totalAnnualWithdrawal = 0;
   let isDepletedInYear = false;
   let depletionMonth = null;
+
+  const startMo = Math.max(1, Math.min(12, Number(startMonth) || 1));
+  const startYr = Number(startYear) || 2026;
 
   for (let m = 1; m <= 12; m++) {
     const monthOpening = currentCorpus;
@@ -67,8 +120,20 @@ export function simulateYearlySwp({
     totalAnnualGain += gain;
     currentCorpus = closing;
 
+    const monthOffset = (startMo - 1) + (m - 1);
+    const calYear = startYr + Math.floor(monthOffset / 12);
+    const calMonth = (monthOffset % 12) + 1;
+    const monthName = MONTH_NAMES_SHORT[calMonth - 1];
+    const monthFullName = MONTH_NAMES_FULL[calMonth - 1];
+    const monthLabel = `${monthName} ${calYear}`;
+
     months.push({
       month: m,
+      monthName,
+      monthFullName,
+      monthLabel,
+      calendarYear: calYear,
+      calendarMonth: calMonth,
       openingCorpus: monthOpening,
       monthlyWithdrawal: withdrawal,
       remainingAfterWithdrawal: remaining,
@@ -103,6 +168,7 @@ export function calculateFinancialPlan({
   currentAge = 43,
   projectionYears = 50,
   startYear = new Date().getFullYear(),
+  startMonth = 11,
   stepUpEnabled = false,
   stepUpType = 'percent', // 'percent' or 'amount'
   stepUpValue = 0,
@@ -121,6 +187,9 @@ export function calculateFinancialPlan({
   const startYr = (startYear !== undefined && startYear !== null && startYear !== '' && !isNaN(Number(startYear)))
     ? Math.max(1900, Math.min(2100, Math.round(Number(startYear))))
     : new Date().getFullYear();
+  const startMo = (startMonth !== undefined && startMonth !== null && startMonth !== '' && !isNaN(Number(startMonth)))
+    ? Math.max(1, Math.min(12, Math.round(Number(startMonth))))
+    : 11;
   const sip = Math.max(0, Number(monthlySip) || 0);
   const sipYears = Math.max(1, Math.round(Number(sipPeriodYears) || 1));
   const initialLump = Math.max(0, Number(lumpsum) || 0);
@@ -201,6 +270,7 @@ export function calculateFinancialPlan({
 
   for (let year = 1; year <= totalAccYears; year++) {
     const calendarYear = startYr + year - 1;
+    const yearLabel = formatYearPeriod(startMo, year, startYr);
     const age = startAge + year - 1;
     const isSipActive = (year <= sipActiveYears);
 
@@ -248,6 +318,8 @@ export function calculateFinancialPlan({
     accumulationRows.push({
       yearNumber: year,
       calendarYear,
+      yearLabel,
+      startMonth: startMo,
       monthlySip: monthlySipInYear,
       isSipActive,
       startAmount,
@@ -280,6 +352,7 @@ export function calculateFinancialPlan({
 
   for (let year = 1; year <= projYears; year++) {
     const calendarYear = startYr + totalAccYears + year - 1;
+    const yearLabel = formatYearPeriod(startMo, year, startYr + totalAccYears);
     const age = retirementStartAge + year - 1;
 
     if (year > 1) {
@@ -306,11 +379,15 @@ export function calculateFinancialPlan({
         annualExpense: currentExpense,
         annualReturn: rSwp,
         futureExpense: 0,
+        startMonth: startMo,
+        startYear: calendarYear,
       });
 
       retirementRows.push({
         yearNumber: year,
         calendarYear,
+        yearLabel,
+        startMonth: startMo,
         age,
         beginningCorpus: 0,
         futureExpense: 0,
@@ -331,6 +408,8 @@ export function calculateFinancialPlan({
         annualExpense: currentExpense,
         annualReturn: rSwp,
         futureExpense,
+        startMonth: startMo,
+        startYear: calendarYear,
       });
 
       if (sim.isDepletedInYear || sim.endCorpus <= 0) {
@@ -345,6 +424,8 @@ export function calculateFinancialPlan({
       retirementRows.push({
         yearNumber: year,
         calendarYear,
+        yearLabel,
+        startMonth: startMo,
         age,
         beginningCorpus,
         futureExpense,
@@ -403,6 +484,7 @@ export function calculateFinancialPlan({
       projectionYears: projYears,
       retirementSustainabilityYears: projYears,
       startYear: startYr,
+      startMonth: startMo,
       stepUpEnabled: isStepUp,
       stepUpType: stepType,
       stepUpValue: stepVal,
@@ -417,6 +499,8 @@ export function calculateFinancialPlan({
     },
     summary: {
       startYear: startYr,
+      startMonth: startMo,
+      startYearPeriod: formatPeriodSpan(startMo, startYr, totalAccYears),
       sipActiveYears,
       totalAccYears,
       growthPauseYears,
@@ -590,6 +674,7 @@ export function calculateRequiredRetirementCorpus({
   sustainabilityYears = null,
   futureExpenses = {},
   startYear = 2026,
+  startMonth = 11,
   totalAccYears = 20,
 }) {
   const years = Math.max(1, Math.round(Number(sustainabilityYears !== null ? sustainabilityYears : retirementSustainabilityYears) || 25));
@@ -662,6 +747,7 @@ export function calculateRequiredMonthlySip({
   futureExpensesEnabled = false,
   futureExpenses = {},
   startYear = 2026,
+  startMonth = 11,
 }) {
   const target = Math.max(0, Number(targetCorpus) || 0);
   if (target <= 0) return 0;
@@ -687,6 +773,7 @@ export function calculateRequiredMonthlySip({
     futureExpensesEnabled,
     futureExpenses,
     startYear,
+    startMonth,
     projectionYears: 1,
   });
 
@@ -712,6 +799,7 @@ export function calculateRequiredMonthlySip({
       futureExpensesEnabled,
       futureExpenses,
       startYear,
+      startMonth,
       projectionYears: 1,
     });
     if (testPlan.summary.finalAccumulationCorpus >= target) break;
@@ -733,6 +821,7 @@ export function calculateRequiredMonthlySip({
       futureExpensesEnabled,
       futureExpenses,
       startYear,
+      startMonth,
       projectionYears: 1,
     });
 
