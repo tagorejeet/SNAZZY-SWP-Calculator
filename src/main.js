@@ -9,7 +9,8 @@ import {
   MONTH_NAMES_FULL,
 } from './calculator.js';
 import { downloadExcelFile } from './excelExport.js';
-import { renderCharts } from './chartManager.js';
+import { downloadFinancialProjectionPdf } from './pdfReport.js';
+import { renderCharts, generateChartImagesForReport } from './chartManager.js';
 import {
   formatINR,
   formatCompactINR,
@@ -17,10 +18,25 @@ import {
   parseNumberInput
 } from './utils/formatters.js';
 
-// Planning Mode State ('goal' | 'sip')
+// Planning Mode State ('goal' | 'sip' | 'report')
 let currentPlanningMode = 'goal';
 const modeGoalBtn = document.getElementById('modeGoalBtn');
 const modeSipBtn = document.getElementById('modeSipBtn');
+const modeReportBtn = document.getElementById('modeReportBtn');
+
+// Card 4: Report Scenario Analysis & PDF Export Elements
+const reportScenarioCard = document.getElementById('reportScenarioCard');
+const addScenarioBtn = document.getElementById('addScenarioBtn');
+const scenariosListContainer = document.getElementById('scenariosListContainer');
+const includeBreakdownSwitch = document.getElementById('includeBreakdownSwitch');
+const reportStructureBreakdownItem = document.getElementById('reportStructureBreakdownItem');
+const reportPageCountBadge = document.getElementById('reportPageCountBadge');
+const generatePdfBtn = document.getElementById('generatePdfBtn');
+const generatePdfNavBtn = document.getElementById('generatePdfNavBtn');
+const quickGeneratePdfBtn = document.getElementById('quickGeneratePdfBtn');
+const reportStructureStepUpItem = document.getElementById('reportStructureStepUpItem');
+
+let reportScenarios = [12]; // Default: single scenario @ 12%
 
 // Card 1: Retirement Goal & Lifestyle Elements
 const currentAgeEl = document.getElementById('currentAge');
@@ -128,6 +144,23 @@ const thFutureExpense = document.getElementById('thFutureExpense');
 const futureExpensesMap = {};
 
 let isSyncingGoalFlow = false;
+let currentViewMode = 'client';
+
+/**
+ * Sets the active presentation view mode ('client' or 'advisor').
+ * Default is 'client' mode.
+ * @param {'client'|'advisor'} mode
+ */
+function setViewMode(mode) {
+  currentViewMode = mode;
+  const isClient = mode === 'client';
+  if (clientModeBtn) clientModeBtn.classList.toggle('active', isClient);
+  if (advisorModeBtn) advisorModeBtn.classList.toggle('active', !isClient);
+  if (clientNameCard) {
+    clientNameCard.classList.toggle('active', isClient || currentPlanningMode === 'report');
+  }
+  document.body.classList.toggle('client-view-active', isClient);
+}
 
 // Action Buttons
 const calculateBtn = document.getElementById('calculateBtn');
@@ -239,6 +272,7 @@ function syncFutureExpenseYearOptions() {
   const retAge = parseNumberInput(retirementAgeEl ? retirementAgeEl.value : 60, 60);
   const isSip = currentPlanningMode === 'sip';
   const sipYears = parseNumberInput(sipPeriodYearsEl ? sipPeriodYearsEl.value : 20, 20);
+  const retSustainYears = parseNumberInput(retirementSustainabilityYearsEl ? retirementSustainabilityYearsEl.value : 20, 20);
 
   let maxFeYear = 0;
   if (futureExpensesMap) {
@@ -254,20 +288,28 @@ function syncFutureExpenseYearOptions() {
   }
 
   const horizon = Math.max(1, retAge - curAge);
-  const baseYears = isSip ? Math.max(sipYears, horizon) : horizon;
-  const totalAccYears = Math.max(baseYears, maxFeYear >= startYr ? (maxFeYear - startYr + 1) : 0);
-  const maxAccYear = startYr + totalAccYears - 1;
+  const baseAccYears = isSip ? Math.max(sipYears, horizon) : horizon;
+  const totalAccYears = baseAccYears;
+  const totalPlanYears = totalAccYears + retSustainYears;
+  const maxPlanYear = Math.max(startYr + totalPlanYears - 1, maxFeYear);
 
   const prevStartVal = Number(feStartYearEl.value) || (startYr + 1);
-  const prevEndVal = Number(feEndYearEl.value) || Math.min(startYr + 4, maxAccYear);
+  const prevEndVal = Number(feEndYearEl.value) || Math.min(startYr + 4, maxPlanYear);
 
   feStartYearEl.innerHTML = '';
   feEndYearEl.innerHTML = '';
 
-  for (let y = startYr; y <= maxAccYear; y++) {
+  for (let y = startYr; y <= maxPlanYear; y++) {
     const yearIdx = y - startYr + 1;
     const yearPeriodLabel = formatYearPeriod(startMo, yearIdx, startYr);
-    const labelText = startMo !== 1 ? `${yearPeriodLabel} (Yr ${yearIdx})` : `${y} (Yr ${yearIdx})`;
+    const age = curAge + (y - startYr);
+    const isRetirement = y >= (startYr + totalAccYears);
+    const phaseLabel = isRetirement
+      ? `Retirement Yr ${y - (startYr + totalAccYears) + 1}`
+      : `SIP Yr ${yearIdx}`;
+    const labelText = startMo !== 1
+      ? `${yearPeriodLabel} (Age ${age} • ${phaseLabel})`
+      : `${y} (Age ${age} • ${phaseLabel})`;
 
     const optStart = document.createElement('option');
     optStart.value = y;
@@ -281,10 +323,10 @@ function syncFutureExpenseYearOptions() {
   }
 
   // Set selected values within valid bounds
-  const clampedStart = Math.max(startYr, Math.min(prevStartVal, maxAccYear));
+  const clampedStart = Math.max(startYr, Math.min(prevStartVal, maxPlanYear));
   feStartYearEl.value = clampedStart;
 
-  const clampedEnd = Math.max(clampedStart, Math.min(prevEndVal, maxAccYear));
+  const clampedEnd = Math.max(clampedStart, Math.min(prevEndVal, maxPlanYear));
   feEndYearEl.value = clampedEnd;
 
   renderFutureExpenseYearInputs();
@@ -298,6 +340,12 @@ function renderFutureExpenseYearInputs() {
   const startYr = parseNumberInput(startYearEl ? startYearEl.value : 2026, 2026);
   const startMo = parseNumberInput(startMonthEl ? startMonthEl.value : 11, 11);
   const curAge = parseNumberInput(currentAgeEl ? currentAgeEl.value : 40, 40);
+  const retAge = parseNumberInput(retirementAgeEl ? retirementAgeEl.value : 60, 60);
+  const isSip = currentPlanningMode === 'sip';
+  const sipYears = parseNumberInput(sipPeriodYearsEl ? sipPeriodYearsEl.value : 20, 20);
+  const horizon = Math.max(1, retAge - curAge);
+  const totalAccYears = isSip ? Math.max(sipYears, horizon) : horizon;
+
   let fromY = Number(feStartYearEl.value) || startYr;
   let toY = Number(feEndYearEl.value) || (startYr + 4);
 
@@ -311,12 +359,17 @@ function renderFutureExpenseYearInputs() {
     const yearIdx = y - startYr + 1;
     const yearPeriodLabel = formatYearPeriod(startMo, yearIdx, startYr);
     const age = curAge + (y - startYr);
+    const isRetirement = y >= (startYr + totalAccYears);
+    const phaseBadge = isRetirement
+      ? `<span class="fe-phase-badge fe-phase-swp">Retirement (SWP Yr ${y - (startYr + totalAccYears) + 1})</span>`
+      : `<span class="fe-phase-badge fe-phase-sip">SIP Accumulation (Yr ${yearIdx})</span>`;
     const existingVal = futureExpensesMap[y] !== undefined && futureExpensesMap[y] > 0 ? futureExpensesMap[y] : '';
     html += `
       <div class="fe-year-row">
         <div class="fe-year-label">
           <span>${startMo !== 1 ? yearPeriodLabel : y}</span>
           <span class="fe-year-badge">Age ${age}</span>
+          ${phaseBadge}
         </div>
         <div class="input-control-wrap fe-year-input-wrap">
           <span class="input-symbol-prefix">₹</span>
@@ -340,44 +393,135 @@ function renderFutureExpenseYearInputs() {
 }
 
 /**
+ * Renders the dynamic scenario input fields in the Scenario Analysis card
+ */
+function renderReportScenarios() {
+  if (!scenariosListContainer) return;
+  scenariosListContainer.innerHTML = '';
+
+  reportScenarios.forEach((rate, idx) => {
+    const row = document.createElement('div');
+    row.className = 'scenario-input-row';
+
+    const canDelete = reportScenarios.length > 1;
+
+    row.innerHTML = `
+      <div class="scenario-badge-wrap">
+        <span class="scenario-badge">Scenario ${idx + 1}</span>
+      </div>
+      <div class="input-control-wrap scenario-input-wrap">
+        <input
+          type="number"
+          class="snazzy-input has-suffix scenario-rate-input"
+          data-index="${idx}"
+          min="1"
+          max="35"
+          step="0.5"
+          value="${rate}"
+          placeholder="12"
+        />
+        <span class="input-symbol-suffix">% p.a.</span>
+      </div>
+      <button
+        type="button"
+        class="btn-delete-scenario ${canDelete ? '' : 'is-disabled'}"
+        data-index="${idx}"
+        title="${canDelete ? 'Remove this scenario' : 'At least one scenario is required'}"
+        ${canDelete ? '' : 'disabled'}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    `;
+
+    scenariosListContainer.appendChild(row);
+  });
+
+  // Attach input event listeners
+  const inputs = scenariosListContainer.querySelectorAll('.scenario-rate-input');
+  inputs.forEach((input) => {
+    input.addEventListener('input', (e) => {
+      const index = parseInt(e.target.dataset.index, 10);
+      const val = parseFloat(e.target.value);
+      if (!isNaN(val) && val > 0) {
+        reportScenarios[index] = val;
+      }
+    });
+  });
+
+  // Attach delete button listeners
+  const deleteBtns = scenariosListContainer.querySelectorAll('.btn-delete-scenario');
+  deleteBtns.forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const index = parseInt(e.currentTarget.dataset.index, 10);
+      if (reportScenarios.length > 1) {
+        reportScenarios.splice(index, 1);
+        renderReportScenarios();
+        updateReportStructurePageCount();
+      }
+    });
+  });
+}
+
+/**
+ * Updates the visual page count badge and breakdown item opacity in the report preview
+ */
+function updateReportStructurePageCount() {
+  const isBreakdownOn = Boolean(includeBreakdownSwitch && includeBreakdownSwitch.checked);
+  if (reportStructureBreakdownItem) {
+    reportStructureBreakdownItem.style.opacity = isBreakdownOn ? '1' : '0.45';
+  }
+  if (reportPageCountBadge) {
+    const pageCount = isBreakdownOn ? '2 Pages Total' : '1 Page Total';
+    reportPageCountBadge.textContent = pageCount;
+  }
+}
+
+/**
  * Toggles UI structure and element states between:
  * 1. 'goal': Comprehensive Goal-Based Retirement Planning (all 3 cards, reverse SIP solver, SWP schedule)
  * 2. 'sip': Pure SIP Calculator (Card 2 only, centered layout, pure accumulation schedule & charts)
+ * 3. 'report': Financial Projection PDF Report generation mode
  */
 function applyPlanningModeUI(mode) {
   currentPlanningMode = mode;
   const isSip = mode === 'sip';
+  const isReport = mode === 'report';
+  const isGoal = mode === 'goal';
 
   // Toggle segmented mode buttons
-  if (modeGoalBtn && modeSipBtn) {
-    if (isSip) {
-      modeSipBtn.classList.add('active');
-      modeSipBtn.setAttribute('aria-selected', 'true');
-      modeGoalBtn.classList.remove('active');
-      modeGoalBtn.setAttribute('aria-selected', 'false');
-    } else {
-      modeGoalBtn.classList.add('active');
-      modeGoalBtn.setAttribute('aria-selected', 'true');
-      modeSipBtn.classList.remove('active');
-      modeSipBtn.setAttribute('aria-selected', 'false');
-    }
+  if (modeGoalBtn) {
+    modeGoalBtn.classList.toggle('active', isGoal);
+    modeGoalBtn.setAttribute('aria-selected', isGoal ? 'true' : 'false');
+  }
+  if (modeSipBtn) {
+    modeSipBtn.classList.toggle('active', isSip);
+    modeSipBtn.setAttribute('aria-selected', isSip ? 'true' : 'false');
+  }
+  if (modeReportBtn) {
+    modeReportBtn.classList.toggle('active', isReport);
+    modeReportBtn.setAttribute('aria-selected', isReport ? 'true' : 'false');
   }
 
   // Section 1: Inputs grid layout & card visibility
-  // In SIP mode, Card 1 (goal) is hidden while Card 2 (SIP) and Card 3 (SWP assumptions) are shown side-by-side!
   if (retirementGoalCard) {
-    retirementGoalCard.style.display = isSip ? 'none' : '';
+    retirementGoalCard.style.display = isGoal ? '' : 'none';
   }
   if (retirementSwpCard) {
     retirementSwpCard.style.display = '';
     const card3StagePill = retirementSwpCard.querySelector('.card-stage-pill');
     if (card3StagePill) {
-      card3StagePill.textContent = isSip ? 'Stage 2: SWP' : 'Stage 2: Income';
+      card3StagePill.textContent = isSip ? 'Stage 2: SWP' : (isReport ? 'Stage 2: SWP Assumptions' : 'Stage 2: Income');
     }
     const card3TargetBadge = document.querySelector('.ret-corpus-target-badge');
     if (card3TargetBadge) {
-      card3TargetBadge.textContent = isSip ? 'PROJECTED SWP SUSTAINABILITY' : 'REQUIRED RETIREMENT CORPUS';
+      card3TargetBadge.textContent = (isSip || isReport) ? 'PROJECTED SWP SUSTAINABILITY' : 'REQUIRED RETIREMENT CORPUS';
     }
+  }
+  if (reportScenarioCard) {
+    reportScenarioCard.style.display = isReport ? '' : 'none';
   }
   if (inputsGridContainer) {
     inputsGridContainer.classList.toggle('is-sip-mode', isSip);
@@ -385,20 +529,24 @@ function applyPlanningModeUI(mode) {
 
   // Card 2 title & styling
   if (investmentCardTitle) {
-    investmentCardTitle.textContent = isSip ? 'SIP Calculator (Wealth Accumulation)' : 'Investment Inputs (Accumulation)';
+    if (isReport) {
+      investmentCardTitle.textContent = 'SIP & Accumulation (Report Inputs)';
+    } else {
+      investmentCardTitle.textContent = isSip ? 'SIP Calculator (Wealth Accumulation)' : 'Investment Inputs (Accumulation)';
+    }
   }
   if (investmentCardStagePill) {
-    investmentCardStagePill.textContent = isSip ? 'Stage 1: Growth' : 'Stage 1: Growth';
+    investmentCardStagePill.textContent = 'Stage 1: Growth';
   }
 
-  // Current Age & Retirement Age in Card 2 for SIP mode
+  // Current Age & Retirement Age in Card 2 for SIP and Report modes
   if (sipCurrentAgeGroup) {
-    sipCurrentAgeGroup.style.display = isSip ? '' : 'none';
+    sipCurrentAgeGroup.style.display = (isSip || isReport) ? '' : 'none';
   }
   if (sipRetirementAgeGroup) {
-    sipRetirementAgeGroup.style.display = isSip ? '' : 'none';
+    sipRetirementAgeGroup.style.display = (isSip || isReport) ? '' : 'none';
   }
-  if (isSip) {
+  if (isSip || isReport) {
     if (sipCurrentAgeEl && currentAgeEl) {
       sipCurrentAgeEl.value = currentAgeEl.value;
     }
@@ -414,23 +562,31 @@ function applyPlanningModeUI(mode) {
     }
   }
   if (sipPeriodYearsLabel) {
-    sipPeriodYearsLabel.textContent = isSip ? 'SIP Contribution Duration' : 'SIP Period';
+    sipPeriodYearsLabel.textContent = isGoal ? 'SIP Period' : 'SIP Contribution Duration';
   }
   if (sipPeriodYearsSubHint) {
-    sipPeriodYearsSubHint.textContent = isSip ? 'Active SIP Years' : 'Years';
+    sipPeriodYearsSubHint.textContent = isGoal ? 'Years' : 'Active SIP Years';
   }
 
   // Monthly SIP label, badge & editable status
   if (monthlySipLabelText) {
-    monthlySipLabelText.textContent = isSip ? 'Monthly SIP Amount' : 'Required Monthly SIP';
+    monthlySipLabelText.textContent = isGoal ? 'Required Monthly SIP' : 'Monthly SIP Amount';
   }
   if (sipModeBadge) {
-    sipModeBadge.textContent = isSip ? '📈 Planned SIP' : '🎯 Auto-Calculated';
-    sipModeBadge.className = isSip ? 'sip-mode-badge pill-green' : 'sip-mode-badge pill-gold';
+    if (isReport) {
+      sipModeBadge.textContent = '📄 Report Input';
+      sipModeBadge.className = 'sip-mode-badge pill-blue';
+    } else if (isSip) {
+      sipModeBadge.textContent = '📈 Planned SIP';
+      sipModeBadge.className = 'sip-mode-badge pill-green';
+    } else {
+      sipModeBadge.textContent = '🎯 Auto-Calculated';
+      sipModeBadge.className = 'sip-mode-badge pill-gold';
+    }
   }
   if (monthlySipEl) {
-    monthlySipEl.readOnly = !isSip;
-    monthlySipEl.classList.toggle('is-auto-calc', !isSip);
+    monthlySipEl.readOnly = isGoal;
+    monthlySipEl.classList.toggle('is-auto-calc', isGoal);
   }
 
   // SIP action buttons inside Card 2
@@ -438,11 +594,27 @@ function applyPlanningModeUI(mode) {
     sipActionButtonsRow.style.display = isSip ? 'block' : 'none';
   }
 
+  // Client Name Card visibility in Client View mode or Report mode
+  if (clientNameCard) {
+    clientNameCard.classList.toggle('active', currentViewMode === 'client' || isReport);
+  }
+
+  // Step-up preview item state
+  if (reportStructureStepUpItem && stepUpCheckbox) {
+    reportStructureStepUpItem.style.opacity = stepUpCheckbox.checked ? '1' : '0.5';
+  }
+
   // Section 1 description
   if (inputsSectionDesc) {
-    inputsSectionDesc.textContent = isSip
-      ? 'SIP Wealth Accumulation & SWP Calculator: calculate how your monthly SIP grows into a wealth corpus, and simulate your SWP retirement drawdown longevity.'
-      : 'Goal-based retirement planning: determine the exact SIP required to sustain your lifestyle through retirement.';
+    if (isReport) {
+      inputsSectionDesc.textContent = 'Financial Projection Report: generate a client-ready multi-page PDF proposal with customizable return scenarios, optional year-wise schedule, and retirement SWP longevity.';
+      renderReportScenarios();
+      updateReportStructurePageCount();
+    } else if (isSip) {
+      inputsSectionDesc.textContent = 'SIP Wealth Accumulation & SWP Calculator: calculate how your monthly SIP grows into a wealth corpus, and simulate your SWP retirement drawdown longevity.';
+    } else {
+      inputsSectionDesc.textContent = 'Goal-based retirement planning: determine the exact SIP required to sustain your lifestyle through retirement.';
+    }
   }
 
   // Section 2: Snapshot Title & Descriptions
@@ -792,7 +964,7 @@ function syncGoalRetirementParameters({ source = 'input' } = {}) {
       futureExpenses: futureExpensesMap,
       startYear: startYr,
       startMonth: startMo,
-      totalAccYears: horizon,
+      totalAccYears: isSip ? Math.max(sipYears, horizon) : horizon,
     });
 
     // Update Card 3 Required Retirement Corpus box
@@ -1303,8 +1475,8 @@ function renderAccumulationTable(rows) {
       expenseDisplay = `<span style="font-weight: 600; color: var(--snazzy-burgundy);">${formatINR(row.futureExpense)}</span>`;
     }
 
-    const startAmtDisplay = row.startAmount > 0 
-      ? formatINR(row.startAmount) 
+    const startAmtDisplay = row.startAmount > 0
+      ? formatINR(row.startAmount)
       : '<span style="color: #94A3B8;">₹0</span>';
 
     const sipColDisplay = row.isSipActive === false
@@ -1358,14 +1530,29 @@ function renderRetirementTable(rows, summary) {
 
     const yearPeriodDisplay = row.yearLabel ? ` <span style="font-size: 11px; color: var(--snazzy-text-dim); font-weight: 500;">(${row.yearLabel})</span>` : '';
 
+    const hasFutureExpense = Boolean(row.futureExpense && row.futureExpense > 0);
+    const futureExpenseBadge = hasFutureExpense
+      ? ` <span class="fe-phase-badge fe-phase-swp" style="margin-left: 4px; font-size: 10px;" title="Milestone goal expense of ${formatINR(row.futureExpense)} deducted at year start">-${formatINR(row.futureExpense)} Goal</span>`
+      : '';
+
     html += `
       <tr class="${rowClass}" data-year="${row.yearNumber}">
         <td class="col-center" style="font-weight: 600; text-align: left; padding-left: 14px;">
           <span class="ret-expand-icon">▶</span>
           <span style="font-weight: 700; color: var(--snazzy-navy);">Yr ${row.yearNumber}</span>${yearPeriodDisplay}
-          &nbsp;${agePill}
+          &nbsp;${agePill}${futureExpenseBadge}
         </td>
-        <td style="font-weight: 600;">${row.beginningCorpus > 0 ? formatINR(row.beginningCorpus) : '<span style="color:#94A3B8;">₹0</span>'}</td>
+        <td style="font-weight: 600;">
+          ${row.beginningCorpus > 0 ? formatINR(row.beginningCorpus) : '<span style="color:#94A3B8;">₹0</span>'}
+          ${hasFutureExpense ? `
+            <div style="font-size: 11px; color: var(--snazzy-burgundy); font-weight: 600; margin-top: 2px;">
+              -${formatINR(row.futureExpense)} <span style="font-size: 9.5px; font-weight: 600; background: #FEF3C7; color: #B45309; padding: 1px 5px; border-radius: 3px; border: 1px solid #FDE68A;">Goal Expense</span>
+            </div>
+            <div style="font-size: 10px; color: var(--snazzy-text-dim); font-weight: 500;">
+              Net Invested: ${formatINR(row.startingCorpusAfterFutureExpense)}
+            </div>
+          ` : ''}
+        </td>
         <td style="color: ${row.beginningCorpus > 0 ? 'var(--snazzy-burgundy)' : 'var(--snazzy-text-dim)'};">
           ${formatINR(row.householdExpense)}${inflationBadge}
         </td>
@@ -1412,7 +1599,14 @@ function renderRetirementTable(rows, summary) {
                     ${row.months.map(m => `
                       <tr>
                         <td class="col-center" style="font-weight: 600; color: var(--snazzy-text-dim);">${m.monthLabel ? `Month ${m.month} (${m.monthLabel})` : `Month ${m.month}`}</td>
-                        <td style="font-weight: 600;">${m.openingCorpus > 0 ? formatINR(m.openingCorpus) : '₹0'}</td>
+                        <td style="font-weight: 600;">
+                          ${m.openingCorpus > 0 ? formatINR(m.openingCorpus) : '₹0'}
+                          ${m.month === 1 && hasFutureExpense ? `
+                            <div style="font-size: 9.5px; color: var(--snazzy-burgundy); font-weight: 600; margin-top: 2px;">
+                              (After -${formatINR(row.futureExpense)} Goal Expense)
+                            </div>
+                          ` : ''}
+                        </td>
                         <td style="color: ${m.monthlyWithdrawal > 0 ? 'var(--snazzy-burgundy)' : '#94A3B8'}; font-weight: 600;">
                           ${m.monthlyWithdrawal > 0 ? formatINR(m.monthlyWithdrawal) : '₹0'}
                         </td>
@@ -1511,7 +1705,7 @@ async function handleExcelDownload(btn) {
 
   try {
     const clientName = clientNameInput ? clientNameInput.value.trim().replace(/[^a-zA-Z0-9_-]/g, '_') : 'Client';
-    const filename = `Snazzy_WealthPlan_${clientName}_Age${currentPlan.inputs.currentAge}_${currentPlan.inputs.sipPeriodYears}Yrs.xlsx`;
+    const filename = `Snazzy_Financial_Planning_${clientName}_Age${currentPlan.inputs.currentAge}_${currentPlan.inputs.sipPeriodYears}Yrs.xlsx`;
     await downloadExcelFile(currentPlan, filename);
   } catch (err) {
     console.error('Failed to generate Excel file:', err);
@@ -1523,10 +1717,121 @@ async function handleExcelDownload(btn) {
 }
 
 /**
+ * Handles generating and downloading the Financial Projection PDF Report
+ * @param {HTMLElement} btn The triggering button element
+ */
+async function handlePdfDownload(btn) {
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.innerHTML = `<span class="spinner" style="display:inline-block;width:13px;height:13px;border:2px solid #FFF;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></span> <span>Generating PDF...</span>`;
+    btn.disabled = true;
+  }
+
+  try {
+    const isSipOrReport = currentPlanningMode === 'sip' || currentPlanningMode === 'report';
+    const clientName = (clientNameInput && clientNameInput.value.trim()) || 'Valued Client';
+    const curAge = parseNumberInput(isSipOrReport && sipCurrentAgeEl ? sipCurrentAgeEl.value : (currentAgeEl ? currentAgeEl.value : 40), 40);
+    const retAge = parseNumberInput(isSipOrReport && sipRetirementAgeEl ? sipRetirementAgeEl.value : (retirementAgeEl ? retirementAgeEl.value : 60), 60);
+    const monthlySip = parseNumberInput(monthlySipEl ? monthlySipEl.value : 10000, 10000);
+    const sipYears = parseNumberInput(sipPeriodYearsEl ? sipPeriodYearsEl.value : 20, 20);
+    const lumpsum = parseNumberInput(lumpsumEl ? lumpsumEl.value : 0, 0);
+    const startMonth = parseNumberInput(startMonthEl ? startMonthEl.value : 11, 11);
+    const startYear = parseNumberInput(startYearEl ? startYearEl.value : 2026, 2026);
+    const isStepUp = Boolean(stepUpCheckbox && stepUpCheckbox.checked);
+    const stepVal = parseNumberInput(stepUpValue ? stepUpValue.value : 0, 0);
+    const stepUpType = currentStepUpMode;
+
+    // Dynamic scenarios list (defaults to [12])
+    const currentScenarios = reportScenarios && reportScenarios.length > 0
+      ? reportScenarios.map((n) => Math.max(0.1, Number(n) || 12))
+      : [12];
+
+    // Optional breakdown toggle switch (default: false)
+    const includeBreakdown = Boolean(includeBreakdownSwitch && includeBreakdownSwitch.checked);
+
+    const inflation = parseNumberInput(inflationEl ? inflationEl.value : 6, 6);
+    const swpReturn = parseNumberInput(swpReturnEl ? swpReturnEl.value : 9, 9);
+    const preRetInflation = parseNumberInput(preRetirementInflationEl ? preRetirementInflationEl.value : 8, 8);
+    const curMonthlyExp = parseNumberInput(currentMonthlyExpenseEl ? currentMonthlyExpenseEl.value : 50000, 50000);
+    const annualExp = parseNumberInput(annualExpensesEl ? annualExpensesEl.value : 0, 0);
+    const retSustainYears = parseNumberInput(retirementSustainabilityYearsEl ? retirementSustainabilityYearsEl.value : 20, 20);
+
+    const isFutureExpense = Boolean(futureExpenseCheckbox && futureExpenseCheckbox.checked);
+
+    // Short timeout to allow spinner to paint before heavy PDF compilation
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    // Capture or generate crisp high-DPI chart images for the PDF report
+    let chartImages = { corpusImg: null, cashflowImg: null };
+    try {
+      const activePlanForCharts = currentPlan || calculateFinancialPlan({
+        monthlySip,
+        sipPeriodYears: sipYears,
+        currentAge: curAge,
+        retirementAge: retAge,
+        lumpsum,
+        startMonth,
+        startYear,
+        stepUpEnabled: isStepUp,
+        stepUpType,
+        stepUpValue: stepVal,
+        futureExpensesEnabled: isFutureExpense,
+        futureExpenses: { ...futureExpensesMap },
+        expectedReturn: currentScenarios[0] || 12,
+        inflation,
+        swpReturn,
+        preRetirementInflation: preRetInflation,
+        currentMonthlyExpense: curMonthlyExp,
+        annualExpenses: annualExp,
+        retirementSustainabilityYears: retSustainYears,
+      });
+
+      chartImages = await generateChartImagesForReport(activePlanForCharts);
+    } catch (chartErr) {
+      console.warn('Notice generating chart images for PDF report:', chartErr);
+    }
+
+    downloadFinancialProjectionPdf({
+      clientName,
+      currentAge: curAge,
+      retirementAge: retAge,
+      monthlySip,
+      sipPeriodYears: sipYears,
+      lumpsum,
+      startMonth,
+      startYear,
+      stepUpEnabled: isStepUp,
+      stepUpType,
+      stepUpValue: stepVal,
+      futureExpensesEnabled: isFutureExpense,
+      futureExpenses: { ...futureExpensesMap },
+      scenarios: currentScenarios,
+      includeBreakdown,
+      inflation,
+      swpReturn,
+      preRetirementInflation,
+      currentMonthlyExpense: curMonthlyExp,
+      annualExpenses: annualExp,
+      retirementSustainabilityYears: retSustainYears,
+      chart1Image: chartImages.corpusImg,
+      chart2Image: chartImages.cashflowImg,
+    });
+  } catch (err) {
+    console.error('Failed to generate PDF Report:', err);
+    alert('There was an issue generating the PDF report. Please verify inputs.');
+  } finally {
+    if (btn) {
+      btn.innerHTML = originalHtml;
+      btn.disabled = false;
+    }
+  }
+}
+
+/**
  * Setup Event Listeners
  */
 function setupListeners() {
-  // 1. Planning Mode Switcher (Goal-Based vs SIP-Based)
+  // 1. Planning Mode Switcher (Goal-Based vs SIP-Based vs Report)
   if (modeGoalBtn && modeSipBtn) {
     modeGoalBtn.addEventListener('click', () => {
       applyPlanningModeUI('goal');
@@ -1539,6 +1844,14 @@ function setupListeners() {
       syncFutureExpenseYearOptions();
       syncGoalRetirementParameters({ source: 'modeSwitch' });
     });
+
+    if (modeReportBtn) {
+      modeReportBtn.addEventListener('click', () => {
+        applyPlanningModeUI('report');
+        syncFutureExpenseYearOptions();
+        syncGoalRetirementParameters({ source: 'modeSwitch' });
+      });
+    }
   }
 
   // Action Buttons inside SIP Calculator Card (SIP Mode)
@@ -1730,6 +2043,9 @@ function setupListeners() {
         stepUpToggleCard.classList.remove('active');
         stepUpFieldsWrapper.style.display = 'none';
       }
+      if (reportStructureStepUpItem) {
+        reportStructureStepUpItem.style.opacity = active ? '1' : '0.5';
+      }
       updatePlan();
     });
   }
@@ -1857,44 +2173,46 @@ function setupListeners() {
     });
   }
 
-  calculateBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    const ageVal = validateAgeInputs();
-    if (!ageVal.isValid) {
-      if (retirementAgeEl) retirementAgeEl.focus();
-      return;
-    }
-    updatePlan();
+  if (calculateBtn) {
+    calculateBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const ageVal = validateAgeInputs();
+      if (!ageVal.isValid) {
+        if (retirementAgeEl) retirementAgeEl.focus();
+        return;
+      }
+      updatePlan();
 
-    const sipYrs = parseNumberInput(sipPeriodYearsEl.value, 20);
-    const originalText = calculateBtn.innerHTML;
-    calculateBtn.innerHTML = `
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="20 6 9 17 4 12"></polyline>
-      </svg>
-      <span>✓ ${sipYrs}-Year Plan Calculated!</span>
-    `;
-    calculateBtn.style.background = 'var(--snazzy-emerald)';
-    calculateBtn.style.borderColor = 'var(--snazzy-emerald)';
+      const sipYrs = parseNumberInput(sipPeriodYearsEl.value, 20);
+      const originalText = calculateBtn.innerHTML;
+      calculateBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span>✓ ${sipYrs}-Year Plan Calculated!</span>
+      `;
+      calculateBtn.style.background = 'var(--snazzy-emerald)';
+      calculateBtn.style.borderColor = 'var(--snazzy-emerald)';
 
-    setTimeout(() => {
-      calculateBtn.innerHTML = originalText;
-      calculateBtn.style.background = '';
-      calculateBtn.style.borderColor = '';
-    }, 1500);
+      setTimeout(() => {
+        calculateBtn.innerHTML = originalText;
+        calculateBtn.style.background = '';
+        calculateBtn.style.borderColor = '';
+      }, 1500);
 
-    // Pulse effect and scroll directly to Tables section
-    const tablesSection = document.getElementById('tablesSection');
-    const snapshotSection = document.getElementById('snapshotSection');
-    if (tablesSection) {
-      tablesSection.classList.remove('section-highlight-pulse');
-      void tablesSection.offsetWidth;
-      tablesSection.classList.add('section-highlight-pulse');
-      tablesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else if (snapshotSection) {
-      snapshotSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  });
+      // Pulse effect and scroll directly to Tables section
+      const tablesSection = document.getElementById('tablesSection');
+      const snapshotSection = document.getElementById('snapshotSection');
+      if (tablesSection) {
+        tablesSection.classList.remove('section-highlight-pulse');
+        void tablesSection.offsetWidth;
+        tablesSection.classList.add('section-highlight-pulse');
+        tablesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else if (snapshotSection) {
+        snapshotSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  }
 
   // Table Expand / Collapse Height Toggles
   if (toggleAccExpandBtn) {
@@ -1924,6 +2242,41 @@ function setupListeners() {
     quickDownloadExcelBtn.addEventListener('click', () => handleExcelDownload(quickDownloadExcelBtn));
   }
 
+  // PDF Report Generation Buttons
+  if (generatePdfBtn) {
+    generatePdfBtn.addEventListener('click', () => handlePdfDownload(generatePdfBtn));
+  }
+  if (generatePdfNavBtn) {
+    generatePdfNavBtn.addEventListener('click', () => handlePdfDownload(generatePdfNavBtn));
+  }
+  if (quickGeneratePdfBtn) {
+    quickGeneratePdfBtn.addEventListener('click', () => handlePdfDownload(quickGeneratePdfBtn));
+  }
+
+  // PDF Report Dynamic Scenarios & Breakdown Toggle Listeners
+  if (addScenarioBtn) {
+    addScenarioBtn.addEventListener('click', () => {
+      let nextRate = 10;
+      if (reportScenarios.includes(12) && !reportScenarios.includes(10)) {
+        nextRate = 10;
+      } else if (reportScenarios.includes(10) && !reportScenarios.includes(14)) {
+        nextRate = 14;
+      } else {
+        const lastRate = reportScenarios[reportScenarios.length - 1];
+        nextRate = Math.round(lastRate + 2) || 12;
+      }
+      reportScenarios.push(nextRate);
+      renderReportScenarios();
+      updateReportStructurePageCount();
+    });
+  }
+
+  if (includeBreakdownSwitch) {
+    includeBreakdownSwitch.addEventListener('change', () => {
+      updateReportStructurePageCount();
+    });
+  }
+
   // Table Tabs (Dual Side-by-Side, Accumulation only, Retirement only)
   document.querySelectorAll('.table-tab-btn').forEach((tabBtn) => {
     tabBtn.addEventListener('click', () => {
@@ -1950,15 +2303,11 @@ function setupListeners() {
   // Client View Mode Toggle
   if (advisorModeBtn && clientModeBtn) {
     advisorModeBtn.addEventListener('click', () => {
-      advisorModeBtn.classList.add('active');
-      clientModeBtn.classList.remove('active');
-      if (clientNameCard) clientNameCard.classList.remove('active');
+      setViewMode('advisor');
     });
 
     clientModeBtn.addEventListener('click', () => {
-      clientModeBtn.classList.add('active');
-      advisorModeBtn.classList.remove('active');
-      if (clientNameCard) clientNameCard.classList.add('active');
+      setViewMode('client');
     });
   }
 
@@ -1973,6 +2322,9 @@ function setupListeners() {
 function initApp() {
   syncFutureExpenseYearOptions();
   setupListeners();
+  setViewMode('client');
+  renderReportScenarios();
+  updateReportStructurePageCount();
   applyPlanningModeUI(currentPlanningMode);
   syncGoalRetirementParameters({ source: 'init' });
 }

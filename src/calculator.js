@@ -221,7 +221,8 @@ export function calculateFinancialPlan({
   const projYears = Math.max(1, Math.min(100, Math.round(Number(retirementSustainabilityYears !== null && retirementSustainabilityYears !== undefined && retirementSustainabilityYears !== '' ? retirementSustainabilityYears : projectionYears) || 50)));
 
   // Support custom planned retirement age
-  const targetRetAge = (retirementAge !== undefined && retirementAge !== null && retirementAge !== '' && !isNaN(Number(retirementAge)))
+  const hasExplicitRetAge = (retirementAge !== undefined && retirementAge !== null && retirementAge !== '' && !isNaN(Number(retirementAge)));
+  const targetRetAge = hasExplicitRetAge
     ? Math.max(startAge + 1, Math.round(Number(retirementAge)))
     : (startAge + sipYears);
 
@@ -246,8 +247,12 @@ export function calculateFinancialPlan({
     }
   }
 
-  // Total pre-retirement timeline: at least sipYears, or up to planned retirement age, or up to max future expense year
-  const totalAccYears = Math.max(sipYears, targetRetAge - startAge, maxExpenseYearNum);
+  // When retirement age is explicitly provided (e.g. 60), accumulation stops strictly at retirement age.
+  // Any expense occurring after retirement age belongs to the SWP retirement phase (earning 9% SWP return).
+  // If retirement age was not specified, accumulation covers active SIP or pre-retirement goals.
+  const totalAccYears = hasExplicitRetAge
+    ? Math.max(sipYears, targetRetAge - startAge)
+    : Math.max(sipYears, maxExpenseYearNum);
   const retirementStartAge = startAge + totalAccYears;
   const sipActiveYears = Math.min(sipYears, totalAccYears);
   const growthPauseYears = totalAccYears - sipActiveYears;
@@ -337,7 +342,7 @@ export function calculateFinancialPlan({
 
   const finalAccumulationCorpus = currentCorpus;
   const totalSipInvested = accumulationRows.reduce((sum, r) => sum + r.annualSip, 0);
-  const totalFutureExpenses = accumulationRows.reduce((sum, r) => sum + r.futureExpense, 0);
+  const totalAccFutureExpenses = accumulationRows.reduce((sum, r) => sum + r.futureExpense, 0);
   const totalInvested = totalSipInvested + initialLump;
   const hasAnyCorpusError = accumulationRows.some(r => r.hasCorpusError);
   const corpusErrorYears = accumulationRows.filter(r => r.hasCorpusError).map(r => r.calendarYear);
@@ -444,6 +449,8 @@ export function calculateFinancialPlan({
   }
 
   // Sustainability summary
+  const totalRetFutureExpenses = retirementRows.reduce((sum, r) => sum + (r.futureExpense || 0), 0);
+  const totalFutureExpenses = totalAccFutureExpenses + totalRetFutureExpenses;
   let sustainabilityText = '';
   let sustainabilityYears = projYears;
   if (exhaustionYear) {

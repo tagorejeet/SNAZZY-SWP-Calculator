@@ -954,8 +954,49 @@ console.log('========================================================');
   console.log(`✔ Case 14 (Month field selection & 1-year period calculation from chosen month) Passed`);
 }
 
+// Case 15: Future Expense at Age 61 (Post-Retirement) must NOT delay retirement age 60
+{
+  const res = calculateFinancialPlan({
+    planningMode: 'sip',
+    monthlySip: 38934,
+    sipPeriodYears: 20,
+    currentAge: 40,
+    retirementAge: 60,
+    startYear: 2026,
+    startMonth: 11,
+    expectedReturn: 12,
+    swpReturn: 9,
+    inflation: 6,
+    futureExpensesEnabled: true,
+    futureExpenses: {
+      2047: 95000, // Age 61 (Year 2 of Retirement)
+    },
+  });
+
+  // 1. Accumulation must be strictly 20 years (Ages 40 to 59)
+  assert(res.accumulationRows.length === 20, `Case 15: Accumulation rows must be exactly 20, got ${res.accumulationRows.length}`);
+  assert(res.summary.totalAccYears === 20, `Case 15: Total accumulation years must be 20, got ${res.summary.totalAccYears}`);
+  assert(res.summary.growthPauseYears === 0, `Case 15: Growth pause years must be 0, got ${res.summary.growthPauseYears}`);
+
+  // 2. Retirement must start at Age 60 (NOT Age 61, 62, or 63)
+  assert(res.summary.retirementStartAge === 60, `Case 15: Retirement start age must be 60, got ${res.summary.retirementStartAge}`);
+  assert(res.retirementRows[0].age === 60, `Case 15: Yr 1 of SWP must be Age 60, got ${res.retirementRows[0].age}`);
+  assert(res.retirementRows[1].age === 61, `Case 15: Yr 2 of SWP must be Age 61, got ${res.retirementRows[1].age}`);
+
+  // 3. Post-retirement future expense must appear in Yr 2 of SWP table at 9% return
+  const swpYr2 = res.retirementRows[1];
+  assert(swpYr2.calendarYear === 2047, `Case 15: SWP Yr 2 must be calendar year 2047, got ${swpYr2.calendarYear}`);
+  assert(swpYr2.futureExpense === 95000, `Case 15: SWP Yr 2 futureExpense must be 95000, got ${swpYr2.futureExpense}`);
+  assert(swpYr2.startingCorpusAfterFutureExpense === swpYr2.beginningCorpus - 95000, 'Case 15: Net opening corpus in SWP must deduct 95000');
+
+  // 4. Verify Month 1 of Year 2 begins with net opening corpus
+  assert(swpYr2.months[0].openingCorpus === swpYr2.startingCorpusAfterFutureExpense, 'Case 15: Month 1 opening corpus must match net opening corpus');
+
+  console.log('✔ Case 15 (Retirement strictly at Age 60 & Future Expense at Age 61 in SWP @ 9% return) Passed');
+}
+
 console.log('\n========================================================');
-console.log('ALL 20 EXISTING TESTS + ALL 14 GOAL/SIP VALIDATION CASES PASSED 100%!');
+console.log('ALL 20 EXISTING TESTS + ALL 15 GOAL/SIP VALIDATION CASES PASSED 100%!');
 console.log('========================================================');
 
 

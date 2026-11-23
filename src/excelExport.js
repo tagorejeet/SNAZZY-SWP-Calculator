@@ -9,12 +9,12 @@ import { SNAZZY_LOGO_BASE64 } from './utils/logoBase64.js';
 export async function generateExcelWorkbook(planData) {
   const { inputs, summary, accumulationRows, retirementRows } = planData;
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Snazzy WealthPlan';
-  workbook.lastModifiedBy = 'Snazzy Wealth Financial Advisor';
+  workbook.creator = 'Snazzy Financial Planning';
+  workbook.lastModifiedBy = 'Snazzy Financial Planning Advisor';
   workbook.created = new Date();
   workbook.modified = new Date();
 
-  const sheet = workbook.addWorksheet('Snazzy WealthPlan', {
+  const sheet = workbook.addWorksheet('Financial Planning', {
     views: [{ state: 'frozen', xSplit: 0, ySplit: 6 }],
     properties: { defaultRowHeight: 20 },
   });
@@ -552,7 +552,7 @@ export async function downloadExcelFile(planData, filename = 'Financial_Plan_SIP
   const workbook = await generateExcelWorkbook(planData);
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  
+
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = filename;
