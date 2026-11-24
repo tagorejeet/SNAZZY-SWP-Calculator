@@ -287,6 +287,8 @@ function drawVectorChart2Fallback(doc, x, y, width, height) {
 export function generateFinancialProjectionPdf(rawInputs = {}) {
   // 1. Sanitize inputs
   const clientName = (rawInputs.clientName && String(rawInputs.clientName).trim()) || 'Valued Client';
+  const planningMode = rawInputs.planningMode || 'goal';
+  const isSipMode = planningMode === 'sip';
   const currentAge = Math.max(18, Math.round(Number(rawInputs.currentAge) || 40));
   const retirementAge = Math.max(currentAge + 1, Math.round(Number(rawInputs.retirementAge) || 60));
   const sipPeriodYears = Math.max(1, Math.round(Number(rawInputs.sipPeriodYears) || 20));
@@ -295,16 +297,26 @@ export function generateFinancialProjectionPdf(rawInputs = {}) {
   const startMonth = Math.max(1, Math.min(12, Math.round(Number(rawInputs.startMonth) || 11)));
   const startYear = Math.max(2000, Math.round(Number(rawInputs.startYear) || 2026));
 
+  const userExpReturn = rawInputs.expectedReturn !== undefined && rawInputs.expectedReturn !== ''
+    ? Math.max(0.1, Number(rawInputs.expectedReturn))
+    : null;
+
   // Dynamic Scenarios (default: [12])
   let scenarioRates = [];
   if (Array.isArray(rawInputs.scenarios) && rawInputs.scenarios.length > 0) {
     scenarioRates = rawInputs.scenarios.map(n => Math.max(0.1, Number(n) || 12));
+    if (scenarioRates.length === 1 && userExpReturn !== null) {
+      scenarioRates = [userExpReturn];
+    }
   } else if (rawInputs.scenarioRates && Array.isArray(rawInputs.scenarioRates) && rawInputs.scenarioRates.length > 0) {
     scenarioRates = rawInputs.scenarioRates.map(n => Math.max(0.1, Number(n) || 12));
+    if (scenarioRates.length === 1 && userExpReturn !== null) {
+      scenarioRates = [userExpReturn];
+    }
   } else if (rawInputs.scenario1Return !== undefined && rawInputs.scenario2Return !== undefined) {
     scenarioRates = [Number(rawInputs.scenario1Return) || 10, Number(rawInputs.scenario2Return) || 12];
-  } else if (rawInputs.expectedReturn !== undefined) {
-    scenarioRates = [Number(rawInputs.expectedReturn) || 12];
+  } else if (userExpReturn !== null) {
+    scenarioRates = [userExpReturn];
   } else {
     scenarioRates = [12];
   }
@@ -344,7 +356,7 @@ export function generateFinancialProjectionPdf(rawInputs = {}) {
   );
   const annualExpenses = Number(rawInputs.annualExpenses) > 0
     ? Number(rawInputs.annualExpenses)
-    : calculatedAnnualExpenseAtRetirement;
+    : (isSipMode ? 0 : calculatedAnnualExpenseAtRetirement);
 
   // Report Date
   const now = new Date();
@@ -370,6 +382,7 @@ export function generateFinancialProjectionPdf(rawInputs = {}) {
       currentMonthlyExpense,
       annualExpenses,
       retirementSustainabilityYears,
+      planningMode,
     });
 
     let planStepUp = null;
@@ -394,6 +407,7 @@ export function generateFinancialProjectionPdf(rawInputs = {}) {
         currentMonthlyExpense,
         annualExpenses,
         retirementSustainabilityYears,
+        planningMode,
       });
     }
 
@@ -584,32 +598,65 @@ export function generateFinancialProjectionPdf(rawInputs = {}) {
 
   const startingMonthlyExpenseAtRet = Math.round(annualExpenses / 12);
 
-  const swpTimelineRows = [
-    [
-      'Current Age',
-      `${currentAge} Years`,
-      'Retirement Age',
-      `${retirementAge} Years`,
-    ],
-    [
-      'Household Expense Today',
-      `${formatINR(currentMonthlyExpense)} / mo (${formatINR(currentMonthlyExpense * 12)} / yr)`,
-      `Starting Monthly Expense at Age ${retirementAge}`,
-      `${formatINR(startingMonthlyExpenseAtRet)} / mo`,
-    ],
-    [
-      'Starting Annual Expense (Year 1 SWP)',
-      `${formatINR(annualExpenses)} / yr`,
-      'Retirement Horizon / Duration',
-      `${retirementSustainabilityYears} Years (Age ${retirementAge} to ${retirementAge + retirementSustainabilityYears})`,
-    ],
-    [
-      'Post-Retirement Annual Inflation',
-      formatPercent(inflation, 2),
-      'Post-Retirement SWP Portfolio Return',
-      formatPercent(swpReturn, 2),
-    ],
-  ];
+  let swpTimelineRows = [];
+  if (isSipMode) {
+    // In SIP-based planning, the client's focus is direct SIP accumulation and retirement SWP.
+    // "Household Expense Today" is excluded because client planned starting retirement expenses directly.
+    swpTimelineRows = [
+      [
+        'Current Age',
+        `${currentAge} Years`,
+        'Retirement Age',
+        `${retirementAge} Years`,
+      ],
+      [
+        'Starting Annual Expense (Year 1 SWP)',
+        annualExpenses > 0 ? `${formatINR(annualExpenses)} / yr` : 'Not Applicable (Zero SWP)',
+        `Starting Monthly Expense at Age ${retirementAge}`,
+        annualExpenses > 0 ? `${formatINR(startingMonthlyExpenseAtRet)} / mo` : '₹0 / mo',
+      ],
+      [
+        'Retirement Horizon / Duration',
+        `${retirementSustainabilityYears} Years (Age ${retirementAge} to ${retirementAge + retirementSustainabilityYears})`,
+        'Post-Retirement SWP Portfolio Return',
+        formatPercent(swpReturn, 2),
+      ],
+      [
+        'Post-Retirement Annual Inflation',
+        formatPercent(inflation, 2),
+        'SWP Drawdown Frequency',
+        'Monthly Systematic Withdrawals',
+      ],
+    ];
+  } else {
+    // Goal-based planning: client explicitly derived target retirement corpus from current monthly household expense
+    swpTimelineRows = [
+      [
+        'Current Age',
+        `${currentAge} Years`,
+        'Retirement Age',
+        `${retirementAge} Years`,
+      ],
+      [
+        'Household Expense Today',
+        `${formatINR(currentMonthlyExpense)} / mo (${formatINR(currentMonthlyExpense * 12)} / yr)`,
+        `Starting Monthly Expense at Age ${retirementAge}`,
+        `${formatINR(startingMonthlyExpenseAtRet)} / mo`,
+      ],
+      [
+        'Starting Annual Expense (Year 1 SWP)',
+        `${formatINR(annualExpenses)} / yr`,
+        'Retirement Horizon / Duration',
+        `${retirementSustainabilityYears} Years (Age ${retirementAge} to ${retirementAge + retirementSustainabilityYears})`,
+      ],
+      [
+        'Post-Retirement Annual Inflation',
+        formatPercent(inflation, 2),
+        'Post-Retirement SWP Portfolio Return',
+        formatPercent(swpReturn, 2),
+      ],
+    ];
+  }
 
   autoTable(doc, {
     startY: curY,

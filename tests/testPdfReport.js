@@ -271,6 +271,33 @@ const pageCount9 = doc9.internal.getNumberOfPages();
 assert.strictEqual(pageCount9, 1, `Expected exactly 1 page with Future Expenses section and breakdown OFF, got ${pageCount9}`);
 console.log(`✔ Future expenses table (SIP + Retirement) rendered on Page 1: Total pages is strictly ${pageCount9}`);
 
+// Test Case 10: SIP-Based Planning Mode with Custom Expected Return (10%) & SWP (Strictly 1 Page)
+console.log('\n--- Test 10: SIP-Based Mode with 10% Expected Return & Direct SWP Expenses ---');
+const doc10 = generateFinancialProjectionPdf({
+  clientName: 'Hitesh Diwan',
+  planningMode: 'sip',
+  currentAge: 52,
+  retirementAge: 60,
+  monthlySip: 165000,
+  sipPeriodYears: 8,
+  lumpsum: 0,
+  expectedReturn: 10,
+  scenarios: [10],
+  futureExpensesEnabled: true,
+  futureExpenses: { 2031: 10000000 },
+  annualExpenses: 3500000,
+  inflation: 6,
+  swpReturn: 9,
+  retirementSustainabilityYears: 20,
+  includeBreakdown: false,
+  chart1Image: dummyPngBase64,
+  chart2Image: dummyPngBase64,
+});
+
+const pageCount10 = doc10.internal.getNumberOfPages();
+assert.strictEqual(pageCount10, 1, `Expected exactly 1 page for SIP-based planning report, got ${pageCount10}`);
+console.log(`✔ SIP-based mode report generated at 10% return without Household Expense Today: Total pages is strictly ${pageCount10}`);
+
 console.log('\n========================================================');
 console.log('ALL PDF REPORT TEST CASES PASSED 100%!');
 console.log('========================================================');

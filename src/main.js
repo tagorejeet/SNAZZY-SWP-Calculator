@@ -608,6 +608,10 @@ function applyPlanningModeUI(mode) {
   if (inputsSectionDesc) {
     if (isReport) {
       inputsSectionDesc.textContent = 'Financial Projection Report: generate a client-ready multi-page PDF proposal with customizable return scenarios, optional year-wise schedule, and retirement SWP longevity.';
+      if (reportScenarios.length <= 1 && expectedReturnEl) {
+        const currentRate = parseNumberInput(expectedReturnEl.value, 12);
+        reportScenarios = [currentRate];
+      }
       renderReportScenarios();
       updateReportStructurePageCount();
     } else if (isSip) {
@@ -1171,7 +1175,7 @@ function updateInputSubtexts(inputs) {
   }
 
   const monthlyExpToday = Math.round(inputs.annualExpensesToday / 12);
-  const inflatedSubtext = monthlyExpToday > 0 && horizon > 0
+  const inflatedSubtext = (currentPlanningMode === 'goal' && monthlyExpToday > 0 && horizon > 0)
     ? ` • Inflated from ${formatCompactINR(monthlyExpToday)}/mo today (${horizon} yrs @ ${inputs.preRetirementInflation}%)`
     : '';
 
@@ -1741,10 +1745,18 @@ async function handlePdfDownload(btn) {
     const stepVal = parseNumberInput(stepUpValue ? stepUpValue.value : 0, 0);
     const stepUpType = currentStepUpMode;
 
-    // Dynamic scenarios list (defaults to [12])
-    const currentScenarios = reportScenarios && reportScenarios.length > 0
-      ? reportScenarios.map((n) => Math.max(0.1, Number(n) || 12))
-      : [12];
+    const expReturnVal = parseNumberInput(expectedReturnEl ? expectedReturnEl.value : 12, 12);
+
+    // Dynamic scenarios list:
+    // When generating report from SIP-based mode or Goal-based mode, the primary expected return
+    // must strictly reflect the Expected Return entered by user (e.g. 10%).
+    // In Report mode, if multiple scenarios were added, respect reportScenarios.
+    let currentScenarios;
+    if (currentPlanningMode === 'report' && reportScenarios && reportScenarios.length > 1) {
+      currentScenarios = reportScenarios.map((n) => Math.max(0.1, Number(n) || 12));
+    } else {
+      currentScenarios = [expReturnVal];
+    }
 
     // Optional breakdown toggle switch (default: false)
     const includeBreakdown = Boolean(includeBreakdownSwitch && includeBreakdownSwitch.checked);
@@ -1764,7 +1776,8 @@ async function handlePdfDownload(btn) {
     // Capture or generate crisp high-DPI chart images for the PDF report
     let chartImages = { corpusImg: null, cashflowImg: null };
     try {
-      const activePlanForCharts = currentPlan || calculateFinancialPlan({
+      const activePlanForCharts = calculateFinancialPlan({
+        planningMode: currentPlanningMode,
         monthlySip,
         sipPeriodYears: sipYears,
         currentAge: curAge,
@@ -1777,7 +1790,7 @@ async function handlePdfDownload(btn) {
         stepUpValue: stepVal,
         futureExpensesEnabled: isFutureExpense,
         futureExpenses: { ...futureExpensesMap },
-        expectedReturn: currentScenarios[0] || 12,
+        expectedReturn: currentScenarios[0] || expReturnVal,
         inflation,
         swpReturn,
         preRetirementInflation: preRetInflation,
@@ -1792,6 +1805,8 @@ async function handlePdfDownload(btn) {
     }
 
     downloadFinancialProjectionPdf({
+      planningMode: currentPlanningMode,
+      expectedReturn: expReturnVal,
       clientName,
       currentAge: curAge,
       retirementAge: retAge,
@@ -2010,6 +2025,16 @@ function setupListeners() {
       syncGoalRetirementParameters({ source: 'investChange' });
     });
   });
+
+  if (expectedReturnEl) {
+    expectedReturnEl.addEventListener('input', () => {
+      const val = parseNumberInput(expectedReturnEl.value, 12);
+      if (reportScenarios.length <= 1) {
+        reportScenarios = [val];
+        renderReportScenarios();
+      }
+    });
+  }
 
   // 5. Card 3 Inputs: Retirement / SWP Assumptions
   const swpInputs = [
