@@ -1658,7 +1658,8 @@ tr.row-exhausted td {
 .fe-years-list-header {
   display: flex;
   justify-content: space-between;
-  padding: 6px 14px;
+  align-items: center;
+  padding: 8px 14px;
   background: #F8FAFC;
   border-bottom: 1px solid var(--snazzy-border);
   font-size: 11px;
@@ -1669,6 +1670,22 @@ tr.row-exhausted td {
   position: sticky;
   top: 0;
   z-index: 2;
+}
+
+.fe-header-inputs-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fe-header-reason {
+  width: 175px;
+  text-align: left;
+}
+
+.fe-header-amount {
+  width: 140px;
+  text-align: right;
 }
 
 .fe-years-inputs-list {
@@ -1683,6 +1700,7 @@ tr.row-exhausted td {
   padding: 7px 14px;
   border-bottom: 1px solid #F1F5F9;
   font-size: 12px;
+  gap: 12px;
   transition: background 0.15s ease;
 }
 
@@ -1700,6 +1718,7 @@ tr.row-exhausted td {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
 }
 
 .fe-year-badge {
@@ -1732,8 +1751,54 @@ tr.row-exhausted td {
   border: 1px solid #FDE68A;
 }
 
+.fe-year-inputs-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fe-reason-input-wrap {
+  width: 175px;
+}
+
+.fe-reason-input {
+  height: 36px;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--snazzy-border);
+  background: #FFFFFF;
+  color: var(--snazzy-navy);
+  width: 100%;
+  transition: border-color 0.15s ease;
+}
+
+.fe-reason-input:focus {
+  border-color: var(--snazzy-gold);
+  outline: none;
+}
+
 .fe-year-input-wrap {
   width: 140px;
+}
+
+@media (max-width: 680px) {
+  .fe-year-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .fe-year-inputs-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .fe-reason-input-wrap {
+    flex: 1;
+    width: auto;
+  }
+  .fe-header-inputs-group {
+    display: none;
+  }
 }
 
 /* Insufficient Corpus Red Warning Badges */

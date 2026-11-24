@@ -336,6 +336,7 @@ export function generateFinancialProjectionPdf(rawInputs = {}) {
   // Future Expenses
   const futureExpensesEnabled = Boolean(rawInputs.futureExpensesEnabled);
   const futureExpenses = rawInputs.futureExpenses || {};
+  const futureExpenseReasons = rawInputs.futureExpenseReasons || {};
 
   // Step-Up Configuration
   const stepUpEnabled = Boolean(rawInputs.stepUpEnabled);
@@ -376,6 +377,7 @@ export function generateFinancialProjectionPdf(rawInputs = {}) {
       stepUpEnabled: false,
       futureExpensesEnabled,
       futureExpenses,
+      futureExpenseReasons,
       inflation,
       swpReturn,
       preRetirementInflation,
@@ -401,6 +403,7 @@ export function generateFinancialProjectionPdf(rawInputs = {}) {
         stepUpValue,
         futureExpensesEnabled,
         futureExpenses,
+        futureExpenseReasons,
         inflation,
         swpReturn,
         preRetirementInflation,
@@ -692,6 +695,7 @@ export function generateFinancialProjectionPdf(rawInputs = {}) {
     // Check accumulation rows
     (activePlan.accumulationRows || []).forEach((row) => {
       if (row.futureExpense > 0) {
+        const reason = row.futureExpenseReason || (futureExpenseReasons && (futureExpenseReasons[row.calendarYear] || futureExpenseReasons[row.yearNumber])) || '';
         futureExpenseRows.push({
           year: row.calendarYear,
           yearLabel: row.yearLabel || `${row.calendarYear}`,
@@ -699,6 +703,7 @@ export function generateFinancialProjectionPdf(rawInputs = {}) {
           phase: 'SIP Accumulation Phase',
           phaseShort: `SIP Yr ${row.yearNumber}`,
           amount: row.futureExpense,
+          reason: reason || '-',
         });
       }
     });
@@ -706,6 +711,7 @@ export function generateFinancialProjectionPdf(rawInputs = {}) {
     // Check retirement rows
     (activePlan.retirementRows || []).forEach((row) => {
       if (row.futureExpense > 0) {
+        const reason = row.futureExpenseReason || (futureExpenseReasons && (futureExpenseReasons[row.calendarYear] || futureExpenseReasons[row.yearNumber])) || '';
         futureExpenseRows.push({
           year: row.calendarYear,
           yearLabel: row.yearLabel || `${row.calendarYear}`,
@@ -713,6 +719,7 @@ export function generateFinancialProjectionPdf(rawInputs = {}) {
           phase: 'Retirement Phase (SWP)',
           phaseShort: `SWP Yr ${row.yearNumber}`,
           amount: row.futureExpense,
+          reason: reason || '-',
         });
       }
     });
@@ -721,10 +728,11 @@ export function generateFinancialProjectionPdf(rawInputs = {}) {
   if (futureExpenseRows.length > 0) {
     curY = drawSectionBar(doc, 'Future Goal Expenses', curY);
 
-    const feTableHead = [['Timeline Year & Age', 'Planning Phase', 'Goal Expense Amount']];
+    const feTableHead = [['Timeline Year & Age', 'Planning Phase', 'Goal / Reason', 'Goal Amount']];
     const feTableBody = futureExpenseRows.map(fe => [
       `${fe.yearLabel} (Age ${fe.age})`,
       `${fe.phase} (${fe.phaseShort})`,
+      fe.reason && fe.reason !== '-' ? fe.reason : '-',
       formatINR(fe.amount),
     ]);
 
@@ -733,6 +741,7 @@ export function generateFinancialProjectionPdf(rawInputs = {}) {
       feTableBody.push([
         'Total Future Goal Expenses',
         `${futureExpenseRows.length} Scheduled Withdrawals`,
+        '',
         formatINR(totalFeAmount),
       ]);
     }
@@ -752,13 +761,14 @@ export function generateFinancialProjectionPdf(rawInputs = {}) {
       styles: {
         ...baseTableStyles,
         fontSize: 7.5,
-        cellPadding: 2.5,
+        cellPadding: 2.4,
       },
       alternateRowStyles,
       columnStyles: {
-        0: { cellWidth: 175, font: 'SegoeUI', fontStyle: 'bold', textColor: COLORS.navyDark },
-        1: { cellWidth: 200, font: 'SegoeUI' },
-        2: { cellWidth: 140, halign: 'right', font: 'SegoeUI', fontStyle: 'bold', textColor: COLORS.burgundy },
+        0: { cellWidth: 140, font: 'SegoeUI', fontStyle: 'bold', textColor: COLORS.navyDark },
+        1: { cellWidth: 145, font: 'SegoeUI' },
+        2: { cellWidth: 120, font: 'SegoeUI', fontStyle: 'bold', textColor: COLORS.navyDark },
+        3: { cellWidth: 110, halign: 'right', font: 'SegoeUI', fontStyle: 'bold', textColor: COLORS.burgundy },
       },
     });
 

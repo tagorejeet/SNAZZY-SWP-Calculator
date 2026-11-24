@@ -140,8 +140,9 @@ const feApplyQuickFillBtn = document.getElementById('feApplyQuickFillBtn');
 const feYearsInputsList = document.getElementById('feYearsInputsList');
 const thFutureExpense = document.getElementById('thFutureExpense');
 
-// Future expense state dictionary { [year]: number }
+// Future expense state dictionary { [year]: number } and reasons { [year]: string }
 const futureExpensesMap = {};
+const futureExpenseReasonsMap = {};
 
 let isSyncingGoalFlow = false;
 let currentViewMode = 'client';
@@ -364,6 +365,7 @@ function renderFutureExpenseYearInputs() {
       ? `<span class="fe-phase-badge fe-phase-swp">Retirement (SWP Yr ${y - (startYr + totalAccYears) + 1})</span>`
       : `<span class="fe-phase-badge fe-phase-sip">SIP Accumulation (Yr ${yearIdx})</span>`;
     const existingVal = futureExpensesMap[y] !== undefined && futureExpensesMap[y] > 0 ? futureExpensesMap[y] : '';
+    const existingReason = futureExpenseReasonsMap[y] || '';
     html += `
       <div class="fe-year-row">
         <div class="fe-year-label">
@@ -371,9 +373,14 @@ function renderFutureExpenseYearInputs() {
           <span class="fe-year-badge">Age ${age}</span>
           ${phaseBadge}
         </div>
-        <div class="input-control-wrap fe-year-input-wrap">
-          <span class="input-symbol-prefix">₹</span>
-          <input type="number" class="snazzy-input has-prefix fe-amount-input" data-year="${y}" value="${existingVal}" placeholder="0" min="0" step="5000" />
+        <div class="fe-year-inputs-group">
+          <div class="fe-reason-input-wrap">
+            <input type="text" class="snazzy-input fe-reason-input" data-year="${y}" value="${existingReason}" placeholder="Goal (e.g. Marriage)" />
+          </div>
+          <div class="input-control-wrap fe-year-input-wrap">
+            <span class="input-symbol-prefix">₹</span>
+            <input type="number" class="snazzy-input has-prefix fe-amount-input" data-year="${y}" value="${existingVal}" placeholder="0" min="0" step="5000" />
+          </div>
         </div>
       </div>
     `;
@@ -381,13 +388,23 @@ function renderFutureExpenseYearInputs() {
 
   feYearsInputsList.innerHTML = html;
 
-  // Add event listeners to each year's input
+  // Add event listeners to each year's amount input
   feYearsInputsList.querySelectorAll('.fe-amount-input').forEach((input) => {
     input.addEventListener('input', (e) => {
       const year = Number(e.target.dataset.year);
       const val = parseNumberInput(e.target.value, 0);
       futureExpensesMap[year] = val;
       syncGoalRetirementParameters({ source: 'futureExpense' });
+    });
+  });
+
+  // Add event listeners to each year's reason input
+  feYearsInputsList.querySelectorAll('.fe-reason-input').forEach((input) => {
+    input.addEventListener('input', (e) => {
+      const year = Number(e.target.dataset.year);
+      const reason = e.target.value.trim();
+      futureExpenseReasonsMap[year] = reason;
+      syncGoalRetirementParameters({ source: 'futureExpenseReason' });
     });
   });
 }
@@ -1096,6 +1113,7 @@ function readInputs() {
     stepUpValue: parseNumberInput(stepUpValue ? stepUpValue.value : 0, 0),
     futureExpensesEnabled: futureExpenseCheckbox ? futureExpenseCheckbox.checked : false,
     futureExpenses: { ...futureExpensesMap },
+    futureExpenseReasons: { ...futureExpenseReasonsMap },
     futureExpenseStartYear: feStartYearEl ? Number(feStartYearEl.value) : undefined,
     futureExpenseEndYear: feEndYearEl ? Number(feEndYearEl.value) : undefined,
     planningMode: currentPlanningMode,
@@ -1476,7 +1494,8 @@ function renderAccumulationTable(rows) {
         <span class="badge-insufficient-corpus">⚠️ Not enough corpus</span>
       `;
     } else if (row.futureExpense > 0) {
-      expenseDisplay = `<span style="font-weight: 600; color: var(--snazzy-burgundy);">${formatINR(row.futureExpense)}</span>`;
+      const reasonBadge = row.futureExpenseReason ? `<div style="font-size: 10px; color: var(--snazzy-text-muted); font-weight: 500;">(${row.futureExpenseReason})</div>` : '';
+      expenseDisplay = `<span style="font-weight: 600; color: var(--snazzy-burgundy);">${formatINR(row.futureExpense)}</span>${reasonBadge}`;
     }
 
     const startAmtDisplay = row.startAmount > 0
@@ -1535,8 +1554,9 @@ function renderRetirementTable(rows, summary) {
     const yearPeriodDisplay = row.yearLabel ? ` <span style="font-size: 11px; color: var(--snazzy-text-dim); font-weight: 500;">(${row.yearLabel})</span>` : '';
 
     const hasFutureExpense = Boolean(row.futureExpense && row.futureExpense > 0);
+    const reasonText = row.futureExpenseReason ? ` (${row.futureExpenseReason})` : '';
     const futureExpenseBadge = hasFutureExpense
-      ? ` <span class="fe-phase-badge fe-phase-swp" style="margin-left: 4px; font-size: 10px;" title="Milestone goal expense of ${formatINR(row.futureExpense)} deducted at year start">-${formatINR(row.futureExpense)} Goal</span>`
+      ? ` <span class="fe-phase-badge fe-phase-swp" style="margin-left: 4px; font-size: 10px;" title="Milestone goal expense of ${formatINR(row.futureExpense)}${reasonText} deducted at year start">-${formatINR(row.futureExpense)} Goal${reasonText}</span>`
       : '';
 
     html += `
@@ -1550,7 +1570,7 @@ function renderRetirementTable(rows, summary) {
           ${row.beginningCorpus > 0 ? formatINR(row.beginningCorpus) : '<span style="color:#94A3B8;">₹0</span>'}
           ${hasFutureExpense ? `
             <div style="font-size: 11px; color: var(--snazzy-burgundy); font-weight: 600; margin-top: 2px;">
-              -${formatINR(row.futureExpense)} <span style="font-size: 9.5px; font-weight: 600; background: #FEF3C7; color: #B45309; padding: 1px 5px; border-radius: 3px; border: 1px solid #FDE68A;">Goal Expense</span>
+              -${formatINR(row.futureExpense)} <span style="font-size: 9.5px; font-weight: 600; background: #FEF3C7; color: #B45309; padding: 1px 5px; border-radius: 3px; border: 1px solid #FDE68A;">${row.futureExpenseReason || 'Goal Expense'}</span>
             </div>
             <div style="font-size: 10px; color: var(--snazzy-text-dim); font-weight: 500;">
               Net Invested: ${formatINR(row.startingCorpusAfterFutureExpense)}
@@ -1790,6 +1810,7 @@ async function handlePdfDownload(btn) {
         stepUpValue: stepVal,
         futureExpensesEnabled: isFutureExpense,
         futureExpenses: { ...futureExpensesMap },
+        futureExpenseReasons: { ...futureExpenseReasonsMap },
         expectedReturn: currentScenarios[0] || expReturnVal,
         inflation,
         swpReturn,
@@ -1820,6 +1841,7 @@ async function handlePdfDownload(btn) {
       stepUpValue: stepVal,
       futureExpensesEnabled: isFutureExpense,
       futureExpenses: { ...futureExpensesMap },
+      futureExpenseReasons: { ...futureExpenseReasonsMap },
       scenarios: currentScenarios,
       includeBreakdown,
       inflation,

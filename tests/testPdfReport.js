@@ -285,6 +285,7 @@ const doc10 = generateFinancialProjectionPdf({
   scenarios: [10],
   futureExpensesEnabled: true,
   futureExpenses: { 2031: 10000000 },
+  futureExpenseReasons: { 2031: 'Marriage' },
   annualExpenses: 3500000,
   inflation: 6,
   swpReturn: 9,
@@ -297,6 +298,41 @@ const doc10 = generateFinancialProjectionPdf({
 const pageCount10 = doc10.internal.getNumberOfPages();
 assert.strictEqual(pageCount10, 1, `Expected exactly 1 page for SIP-based planning report, got ${pageCount10}`);
 console.log(`✔ SIP-based mode report generated at 10% return without Household Expense Today: Total pages is strictly ${pageCount10}`);
+
+// Test Case 11: Future Expense with Custom Reason ("Marriage", "Higher Education") in PDF Report
+console.log('\n--- Test 11: Future Expense with Custom Reason ("Marriage", "Higher Education") ---');
+const doc11 = generateFinancialProjectionPdf({
+  clientName: 'Sunil Mehta',
+  planningMode: 'goal',
+  currentAge: 40,
+  retirementAge: 60,
+  monthlySip: 40000,
+  sipPeriodYears: 20,
+  lumpsum: 200000,
+  expectedReturn: 12,
+  scenarios: [12],
+  futureExpensesEnabled: true,
+  futureExpenses: {
+    2032: 2000000,
+    2048: 1500000,
+  },
+  futureExpenseReasons: {
+    2032: 'Daughter Marriage',
+    2048: 'House Renovation',
+  },
+  annualExpenses: 3000000,
+  currentMonthlyExpense: 50000,
+  inflation: 6,
+  swpReturn: 9,
+  retirementSustainabilityYears: 20,
+  includeBreakdown: false,
+  chart1Image: dummyPngBase64,
+  chart2Image: dummyPngBase64,
+});
+
+const pageCount11 = doc11.internal.getNumberOfPages();
+assert.strictEqual(pageCount11, 1, `Expected exactly 1 page for Future Expense reasons report, got ${pageCount11}`);
+console.log(`✔ Future expense reasons ("Daughter Marriage", "House Renovation") rendered cleanly on Page 1: Total pages is strictly ${pageCount11}`);
 
 console.log('\n========================================================');
 console.log('ALL PDF REPORT TEST CASES PASSED 100%!');

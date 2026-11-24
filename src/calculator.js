@@ -174,6 +174,7 @@ export function calculateFinancialPlan({
   stepUpValue = 0,
   futureExpensesEnabled = false,
   futureExpenses = {}, // map of calendarYear or yearNumber -> amount
+  futureExpenseReasons = {}, // map of calendarYear or yearNumber -> reason description
   futureExpenseStartYear = null,
   futureExpenseEndYear = null,
   retirementAge = null,
@@ -285,11 +286,21 @@ export function calculateFinancialPlan({
 
     // Look up future expense for this year
     let futureExpense = 0;
+    let futureExpenseReason = '';
     if (isFutureExpense && futureExpenses) {
-      if (futureExpenses[calendarYear] !== undefined) {
-        futureExpense = Math.max(0, Number(futureExpenses[calendarYear]) || 0);
-      } else if (futureExpenses[year] !== undefined) {
-        futureExpense = Math.max(0, Number(futureExpenses[year]) || 0);
+      const rawFe = (futureExpenses[calendarYear] !== undefined)
+        ? futureExpenses[calendarYear]
+        : futureExpenses[year];
+
+      if (typeof rawFe === 'object' && rawFe !== null) {
+        futureExpense = Math.max(0, Number(rawFe.amount) || 0);
+        futureExpenseReason = rawFe.reason || '';
+      } else if (rawFe !== undefined) {
+        futureExpense = Math.max(0, Number(rawFe) || 0);
+      }
+
+      if (!futureExpenseReason && futureExpenseReasons) {
+        futureExpenseReason = futureExpenseReasons[calendarYear] || futureExpenseReasons[year] || '';
       }
     }
 
@@ -329,6 +340,7 @@ export function calculateFinancialPlan({
       isSipActive,
       startAmount,
       futureExpense,
+      futureExpenseReason,
       netStartAmount,
       annualSip,
       beginningAmount,
@@ -366,11 +378,21 @@ export function calculateFinancialPlan({
 
     // Look up future / goal expense for this retirement year if any
     let futureExpense = 0;
+    let futureExpenseReason = '';
     if (isFutureExpense && futureExpenses) {
-      if (futureExpenses[calendarYear] !== undefined) {
-        futureExpense = Math.max(0, Number(futureExpenses[calendarYear]) || 0);
-      } else if (futureExpenses[year] !== undefined) {
-        futureExpense = Math.max(0, Number(futureExpenses[year]) || 0);
+      const rawFe = (futureExpenses[calendarYear] !== undefined)
+        ? futureExpenses[calendarYear]
+        : futureExpenses[year];
+
+      if (typeof rawFe === 'object' && rawFe !== null) {
+        futureExpense = Math.max(0, Number(rawFe.amount) || 0);
+        futureExpenseReason = rawFe.reason || '';
+      } else if (rawFe !== undefined) {
+        futureExpense = Math.max(0, Number(rawFe) || 0);
+      }
+
+      if (!futureExpenseReason && futureExpenseReasons) {
+        futureExpenseReason = futureExpenseReasons[calendarYear] || futureExpenseReasons[year] || '';
       }
     }
 
@@ -396,6 +418,7 @@ export function calculateFinancialPlan({
         age,
         beginningCorpus: 0,
         futureExpense: 0,
+        futureExpenseReason: '',
         startingCorpusAfterFutureExpense: 0,
         gain: 0,
         inflationRate: inf,
@@ -434,6 +457,7 @@ export function calculateFinancialPlan({
         age,
         beginningCorpus,
         futureExpense,
+        futureExpenseReason,
         startingCorpusAfterFutureExpense: sim.netOpeningCorpus,
         gain: sim.totalAnnualGain,
         inflationRate: inf,
